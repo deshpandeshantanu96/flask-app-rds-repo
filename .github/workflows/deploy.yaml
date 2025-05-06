@@ -122,8 +122,6 @@ jobs:
           kubectl set image deployment/flask-app app=$FULL_IMAGE_NAME -n default
         fi
         
-        # Verify deployment
-        kubectl rollout status deployment/flask-app -n default
-        kubectl get pods,svc -n default
+        
 
-  #code:3
+  #code:4
