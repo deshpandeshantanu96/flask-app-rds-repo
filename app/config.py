@@ -6,3 +6,5 @@ class Config:
     DB_USER = os.getenv('DB_USER')
     DB_PASSWORD = os.getenv('DB_PASSWORD')
     DB_URI = f"mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+
+    #Code
