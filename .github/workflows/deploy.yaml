@@ -91,7 +91,7 @@ jobs:
         apiVersion: apps/v1
         kind: Deployment
         metadata:
-          name: flask-app
+          name: flask-app-1
           namespace: default
         spec:
           progressDeadlineSeconds: 900  # Extend timeout
@@ -102,11 +102,11 @@ jobs:
               maxUnavailable: 1
           selector:
             matchLabels:
-              app: flask-app
+              app: flask-app-1
           template:
             metadata:
               labels:
-                app: flask-app
+                app: flask-app-1
             spec:
               containers:
               - name: app
@@ -129,7 +129,7 @@ jobs:
         EOF
         
         # Expose service if needed
-        kubectl expose deployment flask-app --port=80 --target-port=5000 --type=LoadBalancer || true
+        kubectl expose deployment flask-app-1 --port=80 --target-port=5000 --type=LoadBalancer || true
             
 
   #code:4
