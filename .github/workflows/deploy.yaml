@@ -89,38 +89,42 @@ jobs:
         # Create or update deployment
         if ! kubectl get deployment flask-app -n default; then
           echo "Creating initial deployment..."
-          kubectl apply -f - <<EOF
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: flask-app
-            namespace: default
-          spec:
-            replicas: 2
-            selector:
-              matchLabels:
+          cat <<EOF | kubectl apply -f -
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: flask-app
+          namespace: default
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: flask-app
+          template:
+            metadata:
+              labels:
                 app: flask-app
-            template:
-              metadata:
-                labels:
-                  app: flask-app
-              spec:
-                containers:
-                - name: app
-                  image: $FULL_IMAGE_NAME
-                  ports:
-                  - containerPort: 5000
-                  envFrom:
-                  - secretRef:
-                      name: rds-secret
-                imagePullSecrets:
-                - name: ecr-credentials
-          EOF
+            spec:
+              containers:
+              - name: app
+                image: $FULL_IMAGE_NAME
+                ports:
+                - containerPort: 5000
+                envFrom:
+                - secretRef:
+                    name: rds-secret
+              imagePullSecrets:
+              - name: ecr-credentials
+        EOF
           kubectl expose deployment flask-app --port=80 --target-port=5000 --type=LoadBalancer
         else
           echo "Updating existing deployment..."
           kubectl set image deployment/flask-app app=$FULL_IMAGE_NAME -n default
         fi
+        
+        # Verify deployment
+        kubectl rollout status deployment/flask-app -n default
+        kubectl get pods,svc -n default
         
         
 
