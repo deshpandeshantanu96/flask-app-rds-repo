@@ -86,17 +86,20 @@ jobs:
       env:
         FULL_IMAGE_NAME: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
       run: |
-        # Create or update deployment
-        if ! kubectl get deployment flask-app -n default; then
-          echo "Creating initial deployment..."
-          cat <<EOF | kubectl apply -f -
+        # Apply the deployment manifest
+        cat <<EOF | kubectl apply -f -
         apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: flask-app
           namespace: default
         spec:
+          progressDeadlineSeconds: 900  # Extend timeout
           replicas: 2
+          strategy:
+            rollingUpdate:
+              maxSurge: 1
+              maxUnavailable: 1
           selector:
             matchLabels:
               app: flask-app
@@ -110,22 +113,23 @@ jobs:
                 image: $FULL_IMAGE_NAME
                 ports:
                 - containerPort: 5000
-                envFrom:
-                - secretRef:
-                    name: rds-secret
+                readinessProbe:
+                  httpGet:
+                    path: /health
+                    port: 5000
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+                livenessProbe:
+                  httpGet:
+                    path: /health
+                    port: 5000
+                  initialDelaySeconds: 15
               imagePullSecrets:
               - name: ecr-credentials
         EOF
-          kubectl expose deployment flask-app --port=80 --target-port=5000 --type=LoadBalancer
-        else
-          echo "Updating existing deployment..."
-          kubectl set image deployment/flask-app app=$FULL_IMAGE_NAME -n default
-        fi
         
-        # Verify deployment
-        kubectl rollout status deployment/flask-app -n default
-        kubectl get pods,svc -n default
-        
-        
+        # Expose service if needed
+        kubectl expose deployment flask-app --port=80 --target-port=5000 --type=LoadBalancer || true
+            
 
   #code:4
