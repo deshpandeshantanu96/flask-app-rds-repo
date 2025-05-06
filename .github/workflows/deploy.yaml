@@ -7,16 +7,16 @@ on:
     branches: [ master ]
 
 env:
-  AWS_REGION: us-east-1                   # Update with your region
-  EKS_CLUSTER_NAME: my-eks-cluster-aws-1      # Update with your cluster name
-  ECR_REPOSITORY: 445567099825.dkr.ecr.us-east-1.amazonaws.com/my-flask-app
-  DOCKER_IMAGE: ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: my-eks-cluster-aws-1
+  ECR_REPOSITORY: my-flask-app  # Just the repository name, not full URI
+  ECR_REGISTRY: 445567099825.dkr.ecr.us-east-1.amazonaws.com  # Separate registry
 
 jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4  # Updated to v4
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -46,19 +46,19 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t ${{ env.DOCKER_IMAGE }} .
+        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }} .
 
     - name: Push Docker image
       run: |
-        docker push ${{ env.DOCKER_IMAGE }}
+        docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
   deploy-to-eks:
     needs: build-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'  # Only deploy on main branch pushes
+    if: github.ref == 'refs/heads/master'  # Fixed to match your trigger branch
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
@@ -75,11 +75,13 @@ jobs:
         aws eks --region ${{ env.AWS_REGION }} update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }}
 
     - name: Deploy to EKS
+      env:
+        FULL_IMAGE_NAME: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
       run: |
         # Apply Kubernetes manifests
-        kubectl set image deployment/flask-app app=${{ env.DOCKER_IMAGE }} --record
+        kubectl set image deployment/flask-app app=$FULL_IMAGE_NAME --record
         kubectl rollout status deployment/flask-app
         
         # Verify deployment
-        kubectl get pods
-        kubectl get svc
+        kubectl get pods -n default
+        kubectl get svc -n default
