@@ -112,4 +112,4 @@ jobs:
       kubectl rollout status deployment/flask-app -n default
       kubectl get pods,svc -n default
 
-#code: 1
+#code: 2
