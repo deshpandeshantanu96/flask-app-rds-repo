@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: your-ecr-repo/flask-rds-app:latest
+        image: 445567099825.dkr.ecr.us-east-1.amazonaws.com/flask-rds-app:latest
         ports:
         - containerPort: 5000
         envFrom:
