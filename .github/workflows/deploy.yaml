@@ -49,41 +49,67 @@ jobs:
         docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
   deploy-to-eks:
-    needs: build-test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'  # Fixed to match your trigger branch
-    
-    steps:
-    - uses: actions/checkout@v4
+  needs: build-test
+  runs-on: ubuntu-latest
+  steps:
+  - uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+  - name: Configure AWS credentials
+    uses: aws-actions/configure-aws-credentials@v2
+    with:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      aws-region: ${{ env.AWS_REGION }}
 
-    - name: Install kubectl
-      uses: azure/setup-kubectl@v3
+  - name: Install kubectl
+    uses: azure/setup-kubectl@v3
 
-    - name: Configure EKS credentials
-      run: |
-        aws eks --region ${{ env.AWS_REGION }} update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }}
+  - name: Configure EKS credentials
+    run: |
+      aws eks --region ${{ env.AWS_REGION }} update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }}
 
-    - name: Deploy to EKS
-      env:
-        FULL_IMAGE_NAME: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-      run: |
-        # Create deployment if it doesn't exist
-        if ! kubectl get deployment/flask-app; then
-          kubectl apply -f k8s/deployment.yaml
-        else
-          kubectl set image deployment/flask-app app=${{ env.DOCKER_IMAGE }}
-        fi
-        kubectl rollout status deployment/flask-app
-        
-        # Verify deployment
-        kubectl get pods -n default
-        kubectl get svc -n default
+  - name: Deploy to EKS
+    env:
+      FULL_IMAGE_NAME: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+    run: |
+      # Create or update deployment
+      if ! kubectl get deployment flask-app -n default; then
+        echo "Creating initial deployment..."
+        kubectl apply -f - <<EOF
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: flask-app
+          namespace: default
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: flask-app
+          template:
+            metadata:
+              labels:
+                app: flask-app
+            spec:
+              containers:
+              - name: app
+                image: $FULL_IMAGE_NAME
+                ports:
+                - containerPort: 5000
+                envFrom:
+                - secretRef:
+                    name: rds-secret
+              imagePullSecrets:
+              - name: ecr-credentials
+        EOF
+        kubectl expose deployment flask-app --port=80 --target-port=5000 --type=LoadBalancer
+      else
+        echo "Updating existing deployment..."
+        kubectl set image deployment/flask-app app=$FULL_IMAGE_NAME -n default
+      fi
+      
+      # Verify deployment
+      kubectl rollout status deployment/flask-app -n default
+      kubectl get pods,svc -n default
 
 #code: 1
