@@ -74,8 +74,12 @@ jobs:
       env:
         FULL_IMAGE_NAME: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
       run: |
-        # Apply Kubernetes manifests
-        kubectl set image deployment/flask-app app=$FULL_IMAGE_NAME --record
+        # Create deployment if it doesn't exist
+        if ! kubectl get deployment/flask-app; then
+          kubectl apply -f k8s/deployment.yaml
+        else
+          kubectl set image deployment/flask-app app=${{ env.DOCKER_IMAGE }}
+        fi
         kubectl rollout status deployment/flask-app
         
         # Verify deployment
