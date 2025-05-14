@@ -40,7 +40,10 @@ jobs:
 
       # 5. Terraform Plan (optional but helpful)
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
+        run: |
+          export TF_LOG=INFO
+          export TF_LOG_PATH=plan.log
+          terraform plan -out=tfplan
         working-directory: ./terraform
 
       # 6. Terraform Apply
