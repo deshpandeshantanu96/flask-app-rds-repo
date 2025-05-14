@@ -1,55 +1,51 @@
-name: 'Load Data to RDS via OIDC'
-
-# on:
-#   push:
-#     branches: [ master ]
+name: 'Load Data to RDS'
 
 on:
   workflow_run:
     workflows: ["Deploy AWS Free Tier RDS"]
-    types:
-      - completed
+    types: [completed]
 
 env:
   AWS_REGION: 'us-east-1'
 
 permissions:
-  id-token: write  # Required for OIDC
+  id-token: write
   contents: read
 
 jobs:
   load-data:
     runs-on: ubuntu-latest
     steps:
-      # 1. Checkout code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. Configure AWS via OIDC
-      - name: Configure AWS Credentials
+      - name: Configure AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_IAM_ROLE_ARN }}
           role-session-name: github-actions-rds
 
-      # 3. Download Terraform Outputs artifact
       - name: Download Terraform Outputs
-        uses: actions/download-artifact@v3.1.2
+        uses: actions/download-artifact@v3
         with:
-          name: terraform-outputs
-          path: ./terraform
+          name: rds-outputs
+          path: ./terraform-outputs
 
-      # 4. Set up Python
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
-      # 5. Install dependencies
       - name: Install dependencies
-        run: pip install -r scripts/requirements.txt
+        run: pip install pandas sqlalchemy pymysql boto3
 
-      # 6. Load Data to RDS using outputs.json
       - name: Load Data to RDS
+        env:
+          TF_OUTPUTS: ${{ steps.get-outputs.outputs.tf_outputs }}
         run: python scripts/load_to_rds.py
+
+      - name: Get Outputs
+        id: get-outputs
+        run: |
+          echo "tf_outputs=$(cat ./terraform-outputs/outputs.json)" >> $GITHUB_OUTPUT
