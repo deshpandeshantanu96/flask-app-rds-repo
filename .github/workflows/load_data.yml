@@ -1,4 +1,4 @@
-name: Load Data to RDS via OIDC
+name: 'Load Data to RDS via OIDC'
 on:
   workflow_dispatch:
   workflows: ["Deploy AWS Free Tier RDS"]
