@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 import boto3
 from python_terraform import Terraform
 import json
+import os
 
 def get_rds_config():
     """Parse Terraform outputs from JSON"""
