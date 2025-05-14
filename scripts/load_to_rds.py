@@ -20,7 +20,7 @@ def get_secret():
     return response['SecretString']
 
 # RDS connection details
-db_config = get_rds_config_from_tf_state()
+db_config = get_rds_config()
 # Create SQLAlchemy engine
 engine = create_engine(f"mysql+pymysql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}")
 
