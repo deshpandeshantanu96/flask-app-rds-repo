@@ -2,7 +2,7 @@ name: Load Data to RDS via OIDC
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ master ]
 
 permissions:
   id-token: write  # Required for OIDC
