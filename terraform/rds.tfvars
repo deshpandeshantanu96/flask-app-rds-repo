@@ -1,4 +1,3 @@
-aws_region      = "us-east-1"
 db_instance_identifier     = "prod-db-instance"
 db_name                   = "production_db"
 db_username               = "admin"
