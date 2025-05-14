@@ -65,3 +65,5 @@ jobs:
           echo "Username: $(terraform output -raw rds_username)"
           echo "Database Name: $(terraform output -raw rds_db_name)"
           echo "Password: **** (masked)"
+
+  #Code:1
