@@ -93,7 +93,7 @@ resource "aws_security_group" "rds_sg" {
 
 # DB Subnet Group
 resource "aws_db_subnet_group" "rds_subnet_group" {
-  name       = "rds-subnet-group-1"
+  name       = "rds-subnet-group-2"
   subnet_ids = [
     aws_subnet.public_a.id, 
     aws_subnet.public_b.id
@@ -106,7 +106,7 @@ resource "aws_db_subnet_group" "rds_subnet_group" {
 
 # RDS Instance
 resource "aws_db_instance" "rds_instance" {
-  identifier             = "my-rds-instance-1"
+  identifier             = "my-rds-instance-2"
   instance_class         = "db.t3.micro"
   allocated_storage      = 20
   engine                 = "mysql"
