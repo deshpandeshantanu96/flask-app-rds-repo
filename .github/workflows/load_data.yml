@@ -1,9 +1,15 @@
 name: 'Load Data to RDS via OIDC'
+#on:
+  #workflow_run:
+    #workflows: ["Deploy AWS Free Tier RDS"]
+    #types:
+      #- completed
 on:
-  workflow_run:
-    workflows: ["Deploy AWS Free Tier RDS"]
-    types:
-      - completed
+  push:
+    branches: [ master ]
+
+env:
+  AWS_REGION: 'us-east-1'
 
 permissions:
   id-token: write  # Required for OIDC
