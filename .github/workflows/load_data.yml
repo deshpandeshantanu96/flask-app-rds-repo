@@ -41,7 +41,6 @@ jobs:
       - name: Fetch Terraform Outputs
         id: tf-outputs
         run: |
-          cd terraform
           terraform output -json > outputs.json
           {
             echo "TF_OUTPUTS<<EOF"
