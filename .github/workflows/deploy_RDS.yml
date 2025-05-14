@@ -1,7 +1,9 @@
 name: 'Deploy AWS Free Tier RDS'
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+        - [ master ]
 
 env:
   AWS_REGION: 'us-east-1'
