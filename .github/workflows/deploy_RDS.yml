@@ -43,7 +43,7 @@ jobs:
         run: |
           export TF_LOG=INFO
           export TF_LOG_PATH=plan.log
-          terraform plan -out=tfplan
+          terraform plan -refresh=false -out=tfplan
         working-directory: ./terraform
 
       # 6. Terraform Apply
