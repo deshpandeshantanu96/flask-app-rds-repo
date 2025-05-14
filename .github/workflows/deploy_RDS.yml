@@ -1,4 +1,4 @@
-name: 'Deploy AWS Free Tier RDS'
+name: 'Deploy and Load RDS via OIDC'
 
 on:
   push:
@@ -6,60 +6,64 @@ on:
 
 env:
   AWS_REGION: 'us-east-1'
-  TF_VERSION: '1.5.7'
-  DB_INSTANCE_IDENTIFIER: 'free-tier-db-${{ github.run_id }}'
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  deploy-rds:
-    name: 'Deploy RDS'
+  deploy-and-load:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 🧾 Checkout repository
+      # 1. Checkout repo
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🔐 Configure AWS Credentials
+      # 2. Configure AWS credentials using OIDC
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_IAM_ROLE_ARN }}
+          role-session-name: github-actions-rds
 
-      - name: 🛠️ Setup Terraform
+      # 3. Setup Terraform
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: ${{ env.TF_VERSION }}
+          terraform-version: "1.5.7"
 
-      - name: 🔧 Terraform Init
-        run: terraform init
-        working-directory: terraform
-
-      - name: 🔐 Generate random DB password
-        id: password
+      # 4. Initialize + Apply Terraform
+      - name: Terraform Init & Apply
         run: |
-          PASSWORD=$(openssl rand -hex 16)
-          echo "DB_PASSWORD=$PASSWORD" >> $GITHUB_ENV
-          echo "::add-mask::$PASSWORD"
+          terraform init
+          terraform apply -auto-approve
+        working-directory: ./terraform
 
-      - name: 📋 Terraform Plan
+      # 5. Get Terraform outputs as JSON and pass to TF_OUTPUTS
+      - name: Fetch Terraform Outputs
+        id: tf-outputs
         run: |
-          terraform plan \
-            -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
-            -var="db_password=${{ env.DB_PASSWORD }}" \
-            -out=tfplan
-        working-directory: terraform
+          terraform output -json > outputs.json
+          {
+            echo "TF_OUTPUTS<<EOF"
+            cat outputs.json
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+        working-directory: ./terraform
 
-      - name: 🚀 Terraform Apply
-        run: terraform apply -auto-approve tfplan
-        working-directory: terraform
-
-      - name: Save Terraform outputs
-        run: terraform output -json > outputs.json
-        working-directory: terraform
-
-      - name: Upload Terraform Outputs
-        uses: actions/upload-artifact@v3
+      # 6. Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          name: rds-outputs
-          path: terraform/outputs.json
+          python-version: "3.10"
+
+      # 7. Install dependencies
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      # 8. Run Python script to load data to RDS
+      - name: Load Data to RDS
+        env:
+          TF_OUTPUTS: ${{ steps.tf-outputs.outputs.TF_OUTPUTS }}
+        run: python scripts/load_to_rds.py
