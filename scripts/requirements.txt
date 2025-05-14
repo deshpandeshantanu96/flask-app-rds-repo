@@ -2,4 +2,3 @@ pandas
 sqlalchemy
 boto3
 python-terraform
-json
