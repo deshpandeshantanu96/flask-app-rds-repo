@@ -6,8 +6,13 @@ resource "random_password" "db" {
 
 # Store password in Secrets Manager
 resource "aws_secretsmanager_secret" "db_password" {
-  name = "rds-db-password"
+  name = "rds-db-password-${random_id.suffix.hex}"
 }
+
+resource "random_id" "suffix" {
+  byte_length = 4
+}
+
 
 resource "aws_secretsmanager_secret_version" "db_password_version" {
   secret_id     = aws_secretsmanager_secret.db_password.id
@@ -88,7 +93,7 @@ resource "aws_security_group" "rds_sg" {
 
 # DB Subnet Group
 resource "aws_db_subnet_group" "rds_subnet_group" {
-  name       = "rds-subnet-group"
+  name       = "rds-subnet-group-1"
   subnet_ids = [
     aws_subnet.public_a.id, 
     aws_subnet.public_b.id
