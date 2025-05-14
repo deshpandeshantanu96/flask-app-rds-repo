@@ -1,8 +1,8 @@
 name: 'Deploy AWS Free Tier RDS'
 
-on:
-  push:
-    branches: [ master ]
+#on:
+  #push:
+    #branches: [ master ]
 
 env:
   AWS_REGION: 'us-east-1'
@@ -66,4 +66,4 @@ jobs:
           echo "Database Name: $(terraform output -raw rds_db_name)"
           echo "Password: **** (masked)"
 
-  #Code:3
+  #Code:4
