@@ -4,15 +4,14 @@ import boto3
 from python_terraform import Terraform
 import json
 
-def get_rds_config_from_tf_state():
-    tf = Terraform(working_dir="../terraform")  # adjust if needed
-    return_code, stdout, stderr = tf.output()
-    
-    if return_code != 0:
-        raise Exception(f"Terraform output failed: {stderr}")
-    
-    outputs = json.loads(stdout)
-    return outputs
+def get_rds_config():
+    """Parse Terraform outputs from JSON"""
+    tf_outputs = json.loads(os.getenv("TF_OUTPUTS"))
+    return {
+        "host": tf_outputs["rds_endpoint"]["value"],
+        "secret_arn": tf_outputs["rds_secret_arn"]["value"],
+        "db_name": tf_outputs["rds_db_name"]["value"],
+        "username": tf_outputs["rds_username"]["value"]
 
 def get_secret():
     client = boto3.client('secretsmanager')
