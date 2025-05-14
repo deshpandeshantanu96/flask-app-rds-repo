@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "us-east-1"
-}
-
 # Random Password
 resource "random_password" "db" {
   length  = 16

@@ -3,7 +3,7 @@ on:
   workflow_run:
     workflows: ["Deploy AWS Free Tier RDS"]
     types:
-        - completed
+      - completed
 
 permissions:
   id-token: write  # Required for OIDC
