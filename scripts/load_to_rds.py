@@ -2,17 +2,17 @@ import pandas as pd
 from sqlalchemy import create_engine
 import boto3
 from python_terraform import Terraform
+import json
 
 def get_rds_config_from_tf_state():
-    tf = Terraform(working_dir='.')
-    outputs = tf.output()
+    tf = Terraform(working_dir="../terraform")  # adjust if needed
+    return_code, stdout, stderr = tf.output()
     
-    return {
-        'host': outputs['rds_instance_endpoint']['value'],
-        'secret_arn': outputs['rds_secret_arn']['value'],
-        'database': outputs['rds_db_name']['value'],
-        'username': outputs['rds_username']['value']
-    }
+    if return_code != 0:
+        raise Exception(f"Terraform output failed: {stderr}")
+    
+    outputs = json.loads(stdout)
+    return outputs
 
 def get_secret():
     client = boto3.client('secretsmanager')
