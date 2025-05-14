@@ -10,4 +10,4 @@ db_storage_type           = "gp2"
 db_skip_final_snapshot    = false
 db_publicly_accessible    = false
 db_backup_retention_period = 7
-vpc_security_group_ids    = ["sg-12345678"]
+vpc_security_group_ids    = ["sg-0c850020026063518"]
