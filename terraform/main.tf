@@ -29,11 +29,18 @@ resource "aws_internet_gateway" "gw" {
 }
 
 # Public Subnet
-resource "aws_subnet" "public" {
+resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
-  map_public_ip_on_launch = true
   availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+}
+
+resource "aws_subnet" "public_b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = "us-east-1b"
+  map_public_ip_on_launch = true
 }
 
 # Route Table
@@ -76,7 +83,10 @@ resource "aws_security_group" "rds_sg" {
 # DB Subnet Group
 resource "aws_db_subnet_group" "rds_subnet_group" {
   name       = "rds-subnet-group"
-  subnet_ids = [aws_subnet.public.id]
+  subnet_ids = [
+    aws_subnet.public_a.id, 
+    aws_subnet.public_b.id
+  ]
 
   tags = {
     Name = "rds-subnet-group"
@@ -108,3 +118,24 @@ resource "aws_db_instance" "rds_instance" {
     aws_internet_gateway.gw
   ]
 }
+
+resource "aws_iam_policy" "secrets_manager_policy" {
+  name        = "SecretsManagerAccessPolicy"
+  description = "Allow create, put, and get actions on AWS Secrets Manager"
+  
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "secretsmanager:CreateSecret",
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:GetSecretValue"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
