@@ -12,6 +12,7 @@ def get_rds_config():
         "secret_arn": tf_outputs["rds_secret_arn"]["value"],
         "db_name": tf_outputs["rds_db_name"]["value"],
         "username": tf_outputs["rds_username"]["value"]
+        }
 
 def get_secret():
     client = boto3.client('secretsmanager')
