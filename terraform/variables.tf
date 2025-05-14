@@ -63,3 +63,8 @@ variable "vpc_security_group_ids" {
   description = "List of VPC security groups to associate"
   type        = list(string)
 }
+
+variable "aws_region" {
+  description = "Region"
+  type        = string
+}
