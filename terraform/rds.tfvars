@@ -1,4 +1,4 @@
-db_instance_identifier     = "prod-db-instance-1"
+db_instance_identifier     = "prod-db-instance"
 db_name                   = "production_db"
 db_username               = "admin"
 db_engine                 = "mysql"
