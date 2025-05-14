@@ -1,18 +1,18 @@
-# Random Password
+# Random suffix for resource names
+resource "random_id" "suffix" {
+  byte_length = 4
+}
+
+# Random password
 resource "random_password" "db" {
   length  = 16
   special = false
 }
 
-# Store password in Secrets Manager
+# Secrets Manager for DB password
 resource "aws_secretsmanager_secret" "db_password" {
   name = "rds-db-password-${random_id.suffix.hex}"
 }
-
-resource "random_id" "suffix" {
-  byte_length = 4
-}
-
 
 resource "aws_secretsmanager_secret_version" "db_password_version" {
   secret_id     = aws_secretsmanager_secret.db_password.id
@@ -23,6 +23,7 @@ resource "aws_secretsmanager_secret_version" "db_password_version" {
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
+
   tags = {
     Name = "main-vpc"
   }
@@ -33,7 +34,7 @@ resource "aws_internet_gateway" "gw" {
   vpc_id = aws_vpc.main.id
 }
 
-# Public Subnet
+# Public subnets (for RDS - for testing only)
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
@@ -48,7 +49,7 @@ resource "aws_subnet" "public_b" {
   map_public_ip_on_launch = true
 }
 
-# Route Table
+# Route Table and associations
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -58,7 +59,6 @@ resource "aws_route_table" "public" {
   }
 }
 
-# Route Table Association
 resource "aws_route_table_association" "public_a" {
   subnet_id      = aws_subnet.public_a.id
   route_table_id = aws_route_table.public.id
@@ -69,18 +69,17 @@ resource "aws_route_table_association" "public_b" {
   route_table_id = aws_route_table.public.id
 }
 
-
 # Security Group
 resource "aws_security_group" "rds_sg" {
   name        = "rds-sg"
-  description = "Allow MySQL"
+  description = "Allow MySQL access"
   vpc_id      = aws_vpc.main.id
 
   ingress {
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # ⚠️ Open for testing only
+    cidr_blocks = ["0.0.0.0/0"] # ⚠️ For testing only
   }
 
   egress {
@@ -91,11 +90,11 @@ resource "aws_security_group" "rds_sg" {
   }
 }
 
-# DB Subnet Group
+# Subnet Group for RDS
 resource "aws_db_subnet_group" "rds_subnet_group" {
-  name       = "rds-subnet-group-2"
+  name       = "rds-subnet-group"
   subnet_ids = [
-    aws_subnet.public_a.id, 
+    aws_subnet.public_a.id,
     aws_subnet.public_b.id
   ]
 
@@ -104,9 +103,9 @@ resource "aws_db_subnet_group" "rds_subnet_group" {
   }
 }
 
-# RDS Instance
+# RDS Instance (Free Tier MySQL)
 resource "aws_db_instance" "rds_instance" {
-  identifier             = "my-rds-instance-2"
+  identifier             = "my-rds-instance-${random_id.suffix.hex}"
   instance_class         = "db.t3.micro"
   allocated_storage      = 20
   engine                 = "mysql"
@@ -114,7 +113,7 @@ resource "aws_db_instance" "rds_instance" {
   username               = "admin"
   password               = random_password.db.result
   db_name                = "mydatabase"
-  publicly_accessible    = true
+  publicly_accessible    = true                     # ✅ important fix
   storage_type           = "gp2"
   backup_retention_period = 7
   skip_final_snapshot    = true
@@ -129,5 +128,3 @@ resource "aws_db_instance" "rds_instance" {
     aws_internet_gateway.gw
   ]
 }
-
-
