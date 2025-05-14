@@ -33,14 +33,22 @@ jobs:
         with:
           terraform-version: "1.5.7"
 
-      # 4. Initialize + Apply Terraform
-      - name: Terraform Init & Apply
-        run: |
-          terraform init
-          terraform apply -auto-approve
+      # 4. Terraform Init
+      - name: Terraform Init
+        run: terraform init
         working-directory: ./terraform
 
-      # 5. Get Terraform outputs as JSON and pass to TF_OUTPUTS
+      # 5. Terraform Plan (optional but helpful)
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: ./terraform
+
+      # 6. Terraform Apply
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: ./terraform
+
+      # 7. Get Terraform outputs as JSON
       - name: Fetch Terraform Outputs
         id: tf-outputs
         run: |
@@ -52,17 +60,17 @@ jobs:
           } >> $GITHUB_OUTPUT
         working-directory: ./terraform
 
-      # 6. Setup Python
+      # 8. Setup Python
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
-      # 7. Install dependencies
+      # 9. Install dependencies
       - name: Install dependencies
         run: pip install -r scripts/requirements.txt
 
-      # 8. Run Python script to load data to RDS
+      # 10. Load data to RDS
       - name: Load Data to RDS
         env:
           TF_OUTPUTS: ${{ steps.tf-outputs.outputs.TF_OUTPUTS }}
