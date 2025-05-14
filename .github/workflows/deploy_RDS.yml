@@ -1,8 +1,7 @@
 name: 'Deploy AWS Free Tier RDS'
 
 on:
-  push:
-    branches: [master]  # You can remove this and use push if needed
+  workflow_dispatch:
 
 env:
   AWS_REGION: 'us-east-1'
@@ -15,51 +14,53 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: 🧾 Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
+      - name: 🛠️ Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init
+      - name: 🔧 Terraform Init
         run: terraform init
         working-directory: terraform
 
-      - name: Generate random DB password
+      - name: 🔐 Generate random DB password
         id: password
         run: |
           PASSWORD=$(openssl rand -hex 16)
           echo "DB_PASSWORD=$PASSWORD" >> $GITHUB_ENV
           echo "::add-mask::$PASSWORD"
 
-      - name: Terraform Plan
+      - name: 📋 Terraform Plan
         run: |
           terraform plan \
             -var="aws_region=${{ env.AWS_REGION }}" \
             -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
-            -var="db_password=${{ env.DB_PASSWORD }}"
+            -var="db_password=${{ env.DB_PASSWORD }}" \
+            -var-file="rds.tfvars"
         working-directory: terraform
 
-      - name: Terraform Apply
+      - name: 🚀 Terraform Apply
         run: |
           terraform apply -auto-approve \
             -var="aws_region=${{ env.AWS_REGION }}" \
             -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
-            -var="db_password=${{ env.DB_PASSWORD }}"
+            -var="db_password=${{ env.DB_PASSWORD }}" \
+            -var-file="rds.tfvars"
         working-directory: terraform
 
-      - name: Output connection details
+      - name: 📤 Output RDS connection details
         run: |
           echo "RDS Endpoint: $(terraform output -raw rds_endpoint)"
           echo "Username: $(terraform output -raw rds_username)"
           echo "Database Name: $(terraform output -raw rds_db_name)"
-          echo "Password: ${{ env.DB_PASSWORD }}"
+          echo "Password: **** (masked)"
