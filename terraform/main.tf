@@ -114,7 +114,7 @@ resource "aws_db_instance" "rds_instance" {
   username               = "admin"
   password               = random_password.db.result
   db_name                = "mydatabase"
-  publicly_accessible    = false
+  publicly_accessible    = true
   storage_type           = "gp2"
   backup_retention_period = 7
   skip_final_snapshot    = true
