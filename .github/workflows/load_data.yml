@@ -42,8 +42,13 @@ jobs:
         id: tf-outputs
         run: |
           terraform output -json > outputs.json
-          echo "TF_OUTPUTS=$(cat outputs.json)" >> $GITHUB_OUTPUT
+          {
+            echo "TF_OUTPUTS<<EOF"
+            cat outputs.json
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
         working-directory: ./terraform
+
 
       # 5. Set up Python
       - name: Setup Python
