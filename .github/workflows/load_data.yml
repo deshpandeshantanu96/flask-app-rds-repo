@@ -1,12 +1,14 @@
 name: 'Load Data to RDS via OIDC'
+
 # on:
-#   workflow_run:
-#     workflows: ["Deploy AWS Free Tier RDS"]
-#     types:
-#       - completed
+#   push:
+#     branches: [ master ]
+
 on:
-  push:
-    branches: [ master ]
+  workflow_run:
+    workflows: ["Deploy AWS Free Tier RDS"]
+    types:
+      - completed
 
 env:
   AWS_REGION: 'us-east-1'
@@ -31,37 +33,23 @@ jobs:
           role-to-assume: ${{ vars.AWS_IAM_ROLE_ARN }}
           role-session-name: github-actions-rds
 
-      # 3. Install Terraform
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+      # 3. Download Terraform Outputs artifact
+      - name: Download Terraform Outputs
+        uses: actions/download-artifact@v3
         with:
-          terraform-version: "1.5.7"
+          name: terraform-outputs
+          path: ./terraform
 
-      # 4. Get Terraform outputs as JSON
-      - name: Fetch Terraform Outputs
-        id: tf-outputs
-        run: |
-          terraform output -json > outputs.json
-          {
-            echo "TF_OUTPUTS<<EOF"
-            cat outputs.json
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
-        working-directory: ./terraform
-
-
-      # 5. Set up Python
+      # 4. Set up Python
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-      
+
+      # 5. Install dependencies
       - name: Install dependencies
         run: pip install -r scripts/requirements.txt
 
-
-      # 6. Run Python script
+      # 6. Load Data to RDS using outputs.json
       - name: Load Data to RDS
-        env:
-          TF_OUTPUTS: ${{ steps.tf-outputs.outputs.TF_OUTPUTS }}
         run: python scripts/load_to_rds.py
