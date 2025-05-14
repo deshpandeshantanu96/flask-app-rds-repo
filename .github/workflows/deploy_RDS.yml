@@ -32,6 +32,7 @@ jobs:
 
     - name: Terraform Init
       run: terraform init
+      working-directory: terraform
 
     - name: Generate random DB password
       id: password
@@ -46,6 +47,7 @@ jobs:
           -var="aws_region=${{ env.AWS_REGION }}" \
           -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
           -var="db_password=${{ env.DB_PASSWORD }}"
+      working-directory: terraform
 
     - name: Output connection details
       run: |
