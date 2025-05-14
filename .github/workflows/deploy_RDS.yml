@@ -78,3 +78,5 @@ jobs:
         env:
           TF_OUTPUTS: ${{ steps.tf-outputs.outputs.TF_OUTPUTS }}
         run: python scripts/load_to_rds.py
+
+        #Code:11
