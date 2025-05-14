@@ -20,19 +20,12 @@ def get_secret():
     return response['SecretString']
 
 # RDS connection details
-db_config = {
-    'host': 'your-rds-endpoint.rds.amazonaws.com',
-    'port': 3306,
-    'user': 'admin',
-    'password': get_secret(),
-    'database': 'yourdbname'
-}
-
+db_config = get_rds_config_from_tf_state()
 # Create SQLAlchemy engine
 engine = create_engine(f"mysql+pymysql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}")
 
 # Read CSV
-df = pd.read_csv('your_data.csv')
+df = pd.read_csv('customers-10000.csv')
 
 # Write to RDS
 df.to_sql(
