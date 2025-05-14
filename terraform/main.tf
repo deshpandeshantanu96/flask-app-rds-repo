@@ -54,10 +54,16 @@ resource "aws_route_table" "public" {
 }
 
 # Route Table Association
-resource "aws_route_table_association" "a" {
-  subnet_id      = aws_subnet.public.id
+resource "aws_route_table_association" "public_a" {
+  subnet_id      = aws_subnet.public_a.id
   route_table_id = aws_route_table.public.id
 }
+
+resource "aws_route_table_association" "public_b" {
+  subnet_id      = aws_subnet.public_b.id
+  route_table_id = aws_route_table.public.id
+}
+
 
 # Security Group
 resource "aws_security_group" "rds_sg" {
@@ -118,24 +124,3 @@ resource "aws_db_instance" "rds_instance" {
     aws_internet_gateway.gw
   ]
 }
-
-resource "aws_iam_policy" "secrets_manager_policy" {
-  name        = "SecretsManagerAccessPolicy"
-  description = "Allow create, put, and get actions on AWS Secrets Manager"
-  
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = [
-          "secretsmanager:CreateSecret",
-          "secretsmanager:PutSecretValue",
-          "secretsmanager:GetSecretValue"
-        ],
-        Resource = "*"
-      }
-    ]
-  })
-}
-
