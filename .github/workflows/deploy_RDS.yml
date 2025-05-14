@@ -2,8 +2,7 @@ name: 'Deploy AWS Free Tier RDS'
 
 on:
   push:
-    branches:
-        - [ master ]
+    branches: [ master ]
 
 env:
   AWS_REGION: 'us-east-1'
