@@ -47,33 +47,19 @@ jobs:
             -var="aws_region=${{ env.AWS_REGION }}" \
             -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
             -var="db_password=${{ env.DB_PASSWORD }}" \
-            -var-file="rds.tfvars"
+            -out=tfplan
         working-directory: terraform
 
       - name: 🚀 Terraform Apply
-        run: |
-          terraform apply -auto-approve \
-            -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
-            -var="db_password=${{ env.DB_PASSWORD }}" \
-            -var-file="rds.tfvars"
+        run: terraform apply -auto-approve tfplan
         working-directory: terraform
 
       - name: Save Terraform outputs
         run: terraform output -json > outputs.json
-        working-directory: ./terraform
+        working-directory: terraform
 
       - name: Upload Terraform Outputs
-        uses: actions/upload-artifact@v3.1.2
+        uses: actions/upload-artifact@v3
         with:
-          name: terraform-outputs
-      
-
-      - name: 📤 Output RDS connection details
-        run: |
-          echo "RDS Endpoint: $(terraform output -raw rds_endpoint)"
-          echo "Username: $(terraform output -raw rds_username)"
-          echo "Database Name: $(terraform output -raw rds_db_name)"
-          echo "Password: **** (masked)"
-
-  #Code:7
+          name: rds-outputs
+          path: terraform/outputs.json
