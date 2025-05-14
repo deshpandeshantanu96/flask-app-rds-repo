@@ -7,10 +7,10 @@ import os
 
 def get_rds_config():
     """Parse Terraform outputs from JSON"""
-    #tf_outputs = json.loads(os.getenv("TF_OUTPUTS"))
+    tf_outputs = json.loads(os.getenv("TF_OUTPUTS"))
 
-    with open("terraform/outputs.json") as f:
-        tf_outputs = json.load(f)
+    # with open("terraform/outputs.json") as f:
+    #     tf_outputs = json.load(f)
 
     return {
         "host": tf_outputs["rds_endpoint"]["value"],
