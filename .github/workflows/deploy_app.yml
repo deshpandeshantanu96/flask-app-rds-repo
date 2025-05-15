@@ -147,3 +147,5 @@ jobs:
         echo "✅ Your FastAPI app is deployed and running!"
         echo "🌐 Open the app here: http://${{ env.EC2_PUBLIC_IP }}:8000"
 
+    #1
+
