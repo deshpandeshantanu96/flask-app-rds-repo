@@ -3,93 +3,87 @@ from sqlalchemy import create_engine, exc
 import os
 import logging
 
-
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 def get_rds_config():
-    """Get RDS configuration from environment variables"""
-    config = {
-        "host": os.getenv("DB_HOST"),
-        "db_name": os.getenv("DB_NAME"),
-        "username": os.getenv("DB_USERNAME"),
-        "password": os.getenv("DB_PASSWORD"),
-        "port": int(os.getenv("DB_PORT", "3306")),  # Default to MySQL port
-        "table_name": os.getenv("DB_TABLE_NAME", "customers")  # Default table name
-    }
-    
-    # Validate required configuration
-    missing = [k for k, v in config.items() if v is None and k != "table_name"]
-    if missing:
-        raise ValueError(f"Missing required database configuration: {', '.join(missing)}")
-    
-    return config
+    """Get RDS configuration with robust port handling"""
+    try:
+        # Get port with fallbacks
+        port_str = os.getenv("DB_PORT")
+        if not port_str or not port_str.isdigit():
+            logger.warning("DB_PORT not set or invalid, using default 3306")
+            port = 3306
+        else:
+            port = int(port_str)
+
+        config = {
+            "host": os.getenv("DB_HOST"),
+            "db_name": os.getenv("DB_NAME"),
+            "username": os.getenv("DB_USERNAME"),
+            "password": os.getenv("DB_PASSWORD"),
+            "port": port
+        }
+
+        # Validate required fields
+        required = ["host", "db_name", "username", "password"]
+        missing = [field for field in required if not config[field]]
+        if missing:
+            raise ValueError(f"Missing required config: {', '.join(missing)}")
+
+        return config
+
+    except Exception as e:
+        logger.error(f"Configuration error: {str(e)}")
+        raise
 
 def create_db_engine(config):
-    """Create SQLAlchemy engine with connection pooling"""
+    """Create engine with enhanced error handling"""
     try:
-        connection_string = (
+        conn_str = (
             f"mysql+pymysql://{config['username']}:{config['password']}"
             f"@{config['host']}:{config['port']}/{config['db_name']}"
         )
         
-        engine = create_engine(
-            connection_string,
-            pool_size=5,
-            max_overflow=10,
+        return create_engine(
+            conn_str,
             pool_pre_ping=True,
-            pool_recycle=3600,
-            connect_args={
-                "connect_timeout": 5
-            }
+            connect_args={"connect_timeout": 10}
         )
-        return engine
     except Exception as e:
-        logger.error(f"Error creating database engine: {str(e)}")
+        logger.error(f"Engine creation failed: {str(e)}")
         raise
 
 def load_data_to_rds():
     try:
-        # Get configuration
-        db_config = get_rds_config()
+        config = get_rds_config()
+        engine = create_db_engine(config)
         
-        # Create database engine
-        engine = create_db_engine(db_config)
-        
-        # Test connection
+        # Verify connection
         with engine.connect() as conn:
             conn.execute("SELECT 1")
-            logger.info("Database connection test successful")
         
-        # Read CSV
+        # Load data - using fixed table name 'customers'
         df = pd.read_csv('customers-10000.csv')
-        logger.info(f"Loaded CSV with {len(df)} rows")
-        
-        # Write to RDS
         df.to_sql(
-            name=db_config['table_name'],
+            name='customers',  # Hardcoded table name
             con=engine,
-            if_exists='append',  # or 'replace' to drop and recreate
+            if_exists='append',
             index=False,
-            chunksize=1000,
-            method='multi'  # Faster inserts for MySQL
+            chunksize=1000
         )
         
-        logger.info(f"Data loaded successfully to table {db_config['table_name']}")
+        logger.info(f"Successfully loaded {len(df)} rows to 'customers' table")
         return True
         
     except exc.SQLAlchemyError as e:
         logger.error(f"Database error: {str(e)}")
-        return False
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
-        return False
+    return False
 
 if __name__ == "__main__":
     if load_data_to_rds():
-        print("Data loading completed successfully!")
-    else:
-        print("Data loading failed. Check logs for details.")
-        exit(1)
+        exit(0)
+    exit(1)
