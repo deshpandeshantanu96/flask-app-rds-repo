@@ -1,14 +1,13 @@
 name: 🚀 Deploy FastAPI App on AWS EC2
 
 on:
-  workflow_dispatch:  # Trigger manually
+  workflow_dispatch:
 
 env:
   AWS_REGION: 'us-east-1'
 
 jobs:
   deploy:
-    name: Deploy FastAPI App
     runs-on: ubuntu-latest
 
     steps:
@@ -22,50 +21,40 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
-    - name: Check and create EC2 key pair if needed
-      id: keypair
+    - name: Create a unique EC2 key pair
+      id: create_keypair
       run: |
         set -e
-        KEY_NAME="fastapi-key"
-        KEY_FILE="$KEY_NAME.pem"
-        
-        echo "Checking if key pair $KEY_NAME exists..."
-        if aws ec2 describe-key-pairs --key-names $KEY_NAME --query 'KeyPairs[0].KeyName' --output text 2>/dev/null; then
-          echo "Key pair exists, downloading..."
-          aws ec2 describe-key-pairs --key-name $KEY_NAME --query 'KeyPairs[0].KeyName' --output text
-          echo "Existing key material not retrievable, you'll need to use the existing .pem file"
-        else
-          echo "Creating new key pair..."
-          aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > $KEY_FILE
-          chmod 400 $KEY_FILE
-        fi
-        
-        echo "KEY_NAME=$KEY_NAME" >> $GITHUB_ENV
-        echo "KEY_FILE=$KEY_FILE" >> $GITHUB_ENV
+        # Generate unique key name with timestamp
+        KEY_NAME="fastapi-key-$(date +%s)"
+        KEY_FILE="${KEY_NAME}.pem"
 
+        echo "Creating new key pair: $KEY_NAME"
+        KEY_MATERIAL=$(aws ec2 create-key-pair --key-name "$KEY_NAME" --query 'KeyMaterial' --output text)
+        echo "$KEY_MATERIAL" > "$KEY_FILE"
+        chmod 400 "$KEY_FILE"
 
-    
+        echo "::set-output name=key_name::$KEY_NAME"
+        echo "::set-output name=key_file::$KEY_FILE"
+
     - name: Lookup VPC/Subnet/SG dynamically
       run: |
-        # Get default VPC ID
         VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
         echo "VPC_ID=$VPC_ID" >> $GITHUB_ENV
 
-        # Get subnet in that VPC
         SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[0].SubnetId' --output text)
         echo "SUBNET_ID=$SUBNET_ID" >> $GITHUB_ENV
 
-        # Get a security group in that VPC
         SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[0].GroupId' --output text)
         echo "SG_ID=$SG_ID" >> $GITHUB_ENV
 
-    - name: Launch EC2 Instance
+    - name: Launch EC2 Instance with new key pair
       id: ec2
       run: |
         INSTANCE_ID=$(aws ec2 run-instances \
           --image-id ami-0c02fb55956c7d316 \
           --instance-type t2.micro \
-          --key-name fastapi-key \
+          --key-name ${{ steps.create_keypair.outputs.key_name }} \
           --subnet-id ${{ env.SUBNET_ID }} \
           --security-group-ids ${{ env.SG_ID }} \
           --associate-public-ip-address \
@@ -82,64 +71,32 @@ jobs:
         echo "EC2_PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
 
     - name: Wait for SSH to Become Available
-      run: |
-        sleep 60  # wait for EC2 to be ready
-
-    # - name: Install FastAPI & Start App
-    #   run: |
-    #     ssh -o StrictHostKeyChecking=no -i fastapi-key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
-    #     sudo yum update -y
-    #     sudo yum install git python3 -y
-    #     python3 -m venv venvfastapi-key
-    #     source venv/bin/activate
-    #     git clone https://github.com/${{ github.repository }} app
-    #     cd app
-    #     pip install -r requirements.txt
-
-    #     echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
-    #     echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-    #     echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-    #     echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
-    #     echo "DB_PORT=3306" >> .env
-
-    #     nohup venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 &
-    #     EOF
+      run: sleep 60
 
     - name: Install FastAPI & Start App
       run: |
-        # Ensure proper permissions for the key file
-        chmod 400 ${{ env.KEY_FILE }}
+        chmod 400 ${{ steps.create_keypair.outputs.key_file }}
         
-        # Test SSH connection first
-        echo "Testing SSH connection..."
-        ssh -o StrictHostKeyChecking=no -i ${{ env.KEY_FILE }} ec2-user@${{ env.INSTANCE_IP }} exit
-        
-        # Main deployment commands
-        ssh -o StrictHostKeyChecking=no -i ${{ env.KEY_FILE }} ec2-user@${{ env.INSTANCE_IP }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
         set -e
         
-        # System updates and dependencies
         sudo yum update -y
         sudo yum install -y git python3 python3-venv
         
-        # Python environment setup
         python3 -m venv /home/ec2-user/venv
         source /home/ec2-user/venv/bin/activate
         
-        # Application setup
         if [ ! -d "/home/ec2-user/app" ]; then
-          git clone ${{ env.REPO_URL }} /home/ec2-user/app
+          git clone https://github.com/${{ github.repository }} /home/ec2-user/app
         else
           cd /home/ec2-user/app
           git pull
         fi
         
-        # Install requirements
         cd /home/ec2-user/app
         pip install --upgrade pip
         pip install -r requirements.txt
         
-        # Create .env file securely
         cat > /home/ec2-user/app/.env << ENV_EOF
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USER=${{ secrets.DB_USER }}
@@ -148,13 +105,10 @@ jobs:
         DB_PORT=3306
         ENV_EOF
         
-        # Set proper permissions for .env
         chmod 600 /home/ec2-user/app/.env
         
-        # Kill any existing uvicorn process
         pkill -f "uvicorn backend:app" || true
         
-        # Start application
         nohup /home/ec2-user/venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
         EOF
 
@@ -162,6 +116,3 @@ jobs:
       run: |
         echo "✅ Your FastAPI app is deployed and running!"
         echo "🌐 Open the app here: http://${{ env.EC2_PUBLIC_IP }}:8000"
-
-    #1
-
