@@ -1,0 +1,72 @@
+name: 🚀 Deploy FastAPI App on AWS EC2
+
+on:
+  workflow_dispatch:  # Trigger manually
+
+jobs:
+  deploy:
+    name: Deploy FastAPI App
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Create Key Pair
+      run: |
+        aws ec2 create-key-pair --key-name fastapi-key --query 'KeyMaterial' --output text > fastapi-key.pem
+        chmod 400 fastapi-key.pem
+
+    - name: Launch EC2 Instance
+      id: ec2
+      run: |
+        INSTANCE_ID=$(aws ec2 run-instances \
+          --image-id ami-0c02fb55956c7d316 \
+          --instance-type t2.micro \
+          --key-name fastapi-key \
+          --security-groups default \
+          --query 'Instances[0].InstanceId' --output text)
+
+        echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+
+        aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+        PUBLIC_IP=$(aws ec2 describe-instances \
+          --instance-ids $INSTANCE_ID \
+          --query 'Reservations[0].Instances[0].PublicIpAddress' \
+          --output text)
+        echo "EC2_PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
+
+    - name: Wait for SSH to Become Available
+      run: |
+        sleep 60  # wait for EC2 to be ready
+
+    - name: Install FastAPI & Start App
+      run: |
+        ssh -o StrictHostKeyChecking=no -i fastapi-key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+        sudo yum update -y
+        sudo yum install git python3 -y
+        python3 -m venv venv
+        source venv/bin/activate
+        git clone https://github.com/${{ github.repository }} app
+        cd app
+        pip install -r requirements.txt
+
+        echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
+        echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+        echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+        echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+        echo "DB_PORT=3306" >> .env
+
+        nohup venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 &
+        EOF
+
+    - name: Show Public URL
+      run: |
+        echo "✅ Deployed at: http://${{ env.EC2_PUBLIC_IP }}:8000"

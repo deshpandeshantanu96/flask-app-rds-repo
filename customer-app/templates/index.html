@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Management</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        a { text-decoration: none; color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Users</h1>
+    <table>
+        <tr>
+            <th>Index</th>
+            <th>Customer ID</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Company</th>
+            <th>City</th>
+            <th>Country</th>
+            <th>Action</th>
+        </tr>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.Index }}</td>
+            <td>{{ user.customer_id }}</td>
+            <td>{{ user.first_name }}</td>
+            <td>{{ user.last_name }}</td>
+            <td>{{ user.comapny }}</td>
+            <td>{{ user.city }}</td>
+            <td>{{ user.country }}</td>
+            <td><a href="/user/{{ user.customer_id }}">View/Edit</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
