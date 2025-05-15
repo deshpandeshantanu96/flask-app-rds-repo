@@ -3,6 +3,9 @@ name: 🚀 Deploy FastAPI App on AWS EC2
 on:
   workflow_dispatch:  # Trigger manually
 
+env:
+  AWS_REGION: 'us-east-1'
+
 jobs:
   deploy:
     name: Deploy FastAPI App
