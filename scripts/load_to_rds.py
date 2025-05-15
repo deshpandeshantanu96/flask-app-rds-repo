@@ -11,7 +11,7 @@ def get_rds_config():
     """Get RDS configuration with robust port handling"""
     try:
         # Get port with fallbacks
-        port_str = os.getenv("DB_PORT")
+        port_str = int(os.getenv("DB_PORT"))
         if not port_str or not port_str.isdigit():
             logger.warning("DB_PORT not set or invalid, using default 3306")
             port = 3306
