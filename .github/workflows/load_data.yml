@@ -48,8 +48,8 @@ jobs:
       - name: Load Data to RDS
         env:
           DB_HOST: ${{ secrets.RDS_HOST }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_USERNAME: ${{ secrets.RDS_USERNAME }}
+          DB_PASSWORD: ${{ secrets.RDS_PASSWORD }}
           DB_NAME: ${{ secrets.RDS_DBNAME }}      # Database name
           DB_PORT: ${{ secrets.RDS_SECRET_ARN }}       # e.g., 5432 for PostgreSQL
         run: python scripts/load_to_rds.py
