@@ -103,18 +103,18 @@ jobs:
         python3 -m venv /home/ec2-user/venv
         source /home/ec2-user/venv/bin/activate
         
-        if [ ! -d "/home/ec2-user/app" ]; then
-          git clone https://github.com/${{ github.repository }} /home/ec2-user/app
+        if [ ! -d "/home/ec2-user/customer-app" ]; then
+          git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
         else
-          cd /home/ec2-user/app
+          cd /home/ec2-user/customer-app
           git pull
         fi
         
-        cd /home/ec2-user/app
+        cd /home/ec2-user/customer-app
         pip install --upgrade pip
         pip install -r requirements.txt
         
-        cat > /home/ec2-user/app/.env << ENV_EOF
+        cat > /home/ec2-user/customer-app/.env << ENV_EOF
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USER=${{ secrets.DB_USER }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
@@ -122,12 +122,13 @@ jobs:
         DB_PORT=3306
         ENV_EOF
         
-        chmod 600 /home/ec2-user/app/.env
+        chmod 600 /home/ec2-user/customer-app/.env
         
         pkill -f "uvicorn backend:app" || true
         
-        nohup /home/ec2-user/venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
+        nohup /home/ec2-user/venv/bin/uvicorn backend:app --app-dir /home/ec2-user/customer-app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
         EOF
+
 
     - name: Show Public URL
       run: |
