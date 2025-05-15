@@ -26,23 +26,23 @@ jobs:
       id: keypair
       run: |
         set -e
-
         KEY_NAME="fastapi-key"
-
+        KEY_FILE="$KEY_NAME.pem"
+        
         echo "Checking if key pair $KEY_NAME exists..."
-        EXISTS=$(aws ec2 describe-key-pairs --key-names $KEY_NAME --query 'KeyPairs[0].KeyName' --output text 2>/dev/null || echo "NotFound")
-
-        if [ "$EXISTS" = "$KEY_NAME" ]; then
-          echo "Key pair $KEY_NAME exists, skipping creation."
+        if aws ec2 describe-key-pairs --key-names $KEY_NAME --query 'KeyPairs[0].KeyName' --output text 2>/dev/null; then
+          echo "Key pair exists, downloading..."
+          aws ec2 describe-key-pairs --key-name $KEY_NAME --query 'KeyPairs[0].KeyName' --output text
+          echo "Existing key material not retrievable, you'll need to use the existing .pem file"
         else
-          echo "Key pair $KEY_NAME not found. Creating..."
-          aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > ${KEY_NAME}.pem
-          chmod 400 ${KEY_NAME}.pem
-          echo "Key pair created and saved as ${KEY_NAME}.pem"
+          echo "Creating new key pair..."
+          aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > $KEY_FILE
+          chmod 400 $KEY_FILE
         fi
-
+        
         echo "KEY_NAME=$KEY_NAME" >> $GITHUB_ENV
-        echo "KEY_FILE=${KEY_NAME}.pem" >> $GITHUB_ENV
+        echo "KEY_FILE=$KEY_FILE" >> $GITHUB_ENV
+
 
     
     - name: Lookup VPC/Subnet/SG dynamically
@@ -105,43 +105,59 @@ jobs:
     #     nohup venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 &
     #     EOF
 
-    - name: Install FastAPI & Start App
+     - name: Install FastAPI & Start App
       run: |
-        ssh -o StrictHostKeyChecking=no -i fastapi-key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+        # Ensure proper permissions for the key file
+        chmod 400 ${{ env.KEY_FILE }}
+        
+        # Test SSH connection first
+        echo "Testing SSH connection..."
+        ssh -o StrictHostKeyChecking=no -i ${{ env.KEY_FILE }} ec2-user@${{ env.INSTANCE_IP }} exit
+        
+        # Main deployment commands
+        ssh -o StrictHostKeyChecking=no -i ${{ env.KEY_FILE }} ec2-user@${{ env.INSTANCE_IP }} << 'EOF'
+        set -e
+        
+        # System updates and dependencies
         sudo yum update -y
-        sudo yum install git python3 python3-venv -y
-
-        # Create and activate venv
-        python3 -m venv venv
-        source venv/bin/activate
-
-        # Clone repo if not exists, else pull latest
-        if [ ! -d app ]; then
-          git clone https://github.com/${{ github.repository }} app
+        sudo yum install -y git python3 python3-venv
+        
+        # Python environment setup
+        python3 -m venv /home/ec2-user/venv
+        source /home/ec2-user/venv/bin/activate
+        
+        # Application setup
+        if [ ! -d "/home/ec2-user/app" ]; then
+          git clone ${{ env.REPO_URL }} /home/ec2-user/app
         else
-          cd app
+          cd /home/ec2-user/app
           git pull
-          cd ..
         fi
-
-        cd app
+        
+        # Install requirements
+        cd /home/ec2-user/app
         pip install --upgrade pip
         pip install -r requirements.txt
-
-        # Write .env file
-        cat > .env << ENV_EOF
+        
+        # Create .env file securely
+        cat > /home/ec2-user/app/.env << ENV_EOF
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USER=${{ secrets.DB_USER }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
         DB_NAME=${{ secrets.DB_NAME }}
         DB_PORT=3306
         ENV_EOF
-
-        # Start uvicorn in background with nohup
-        nohup venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 &
+        
+        # Set proper permissions for .env
+        chmod 600 /home/ec2-user/app/.env
+        
+        # Kill any existing uvicorn process
+        pkill -f "uvicorn backend:app" || true
+        
+        # Start application
+        nohup /home/ec2-user/venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
         EOF
-
-
+        
     - name: Show Public URL
       run: |
         echo "✅ Your FastAPI app is deployed and running!"
