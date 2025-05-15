@@ -47,6 +47,7 @@ jobs:
       # 5. Run Python script with secrets
       - name: Load Data to RDS
         env:
+          DB_HOST: ${{ secrets.RDS_HOST }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ secrets.RDS_DBNAME }}      # Database name
