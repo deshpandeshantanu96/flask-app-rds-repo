@@ -94,15 +94,15 @@ jobs:
       run: |
         chmod 400 ${{ steps.create_keypair.outputs.key_file }}
         
-        ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
         set -e
-        
+
         sudo yum update -y
         sudo yum install -y git python3 python3-venv
-        
+
         python3 -m venv /home/ec2-user/venv
         source /home/ec2-user/venv/bin/activate
-        
+
         if [ ! -d "/home/ec2-user/customer-app" ]; then
           git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
         else
@@ -110,11 +110,12 @@ jobs:
           git pull
         fi
 
-        cd /home/ec2-user/customer-app
+        cd /home/ec2-user/customer-app || { echo "Failed to cd into customer-app"; exit 1; }
         ls -l
+
         pip install --upgrade pip
-        pip install -r requirements.txt
-        
+        pip install -r requirements.txt || { echo "Failed to install requirements"; exit 1; }
+
         cat > /home/ec2-user/customer-app/.env << ENV_EOF
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USER=${{ secrets.DB_USER }}
@@ -122,11 +123,11 @@ jobs:
         DB_NAME=${{ secrets.DB_NAME }}
         DB_PORT=3306
         ENV_EOF
-        
+
         chmod 600 /home/ec2-user/customer-app/.env
-        
+
         pkill -f "uvicorn backend:app" || true
-        
+
         nohup /home/ec2-user/venv/bin/uvicorn backend:app --app-dir /home/ec2-user/customer-app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
         EOF
 
