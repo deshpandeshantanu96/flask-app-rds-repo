@@ -16,7 +16,7 @@ def get_rds_config():
         "db_name": os.getenv("DB_NAME"),
         "username": os.getenv("DB_USERNAME"),
         "password": os.getenv("DB_PASSWORD"),
-        "port": os.getenv("DB_PORT", "3306"),  # Default to MySQL port
+        "port": int(os.getenv("DB_PORT", "3306")),  # Default to MySQL port
         "table_name": os.getenv("DB_TABLE_NAME", "customers")  # Default table name
     }
     
