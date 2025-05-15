@@ -109,8 +109,9 @@ jobs:
           cd /home/ec2-user/customer-app
           git pull
         fi
-        
+
         cd /home/ec2-user/customer-app
+        ls -l
         pip install --upgrade pip
         pip install -r requirements.txt
         
