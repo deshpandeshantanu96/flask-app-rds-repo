@@ -48,7 +48,7 @@ jobs:
     - name: Lookup VPC/Subnet/SG dynamically
       run: |
         # Get default VPC ID
-        VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query 'Vpcs[0].VpcId' --output text)
+        VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
         echo "VPC_ID=$VPC_ID" >> $GITHUB_ENV
 
         # Get subnet in that VPC
