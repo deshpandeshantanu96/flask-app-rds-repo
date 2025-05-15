@@ -15,7 +15,6 @@ env:
 permissions:
   id-token: write  # Required for OIDC
   contents: read
-  secrets: read    # Required to access GitHub secrets
 
 jobs:
   load-data:
