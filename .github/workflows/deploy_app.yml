@@ -105,7 +105,7 @@ jobs:
     #     nohup venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 &
     #     EOF
 
-     - name: Install FastAPI & Start App
+    - name: Install FastAPI & Start App
       run: |
         # Ensure proper permissions for the key file
         chmod 400 ${{ env.KEY_FILE }}
@@ -157,7 +157,7 @@ jobs:
         # Start application
         nohup /home/ec2-user/venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
         EOF
-        
+
     - name: Show Public URL
       run: |
         echo "✅ Your FastAPI app is deployed and running!"
