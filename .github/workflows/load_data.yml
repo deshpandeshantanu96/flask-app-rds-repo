@@ -1,12 +1,13 @@
 name: 'Load Data to RDS via OIDC'
-on:
-  workflow_run:
-    workflows: ["Deploy AWS Free Tier RDS"]
-    types:
-      - completed
 # on:
-#   push:
-#     branches: [ master ]
+#   workflow_run:
+#     workflows: ["Deploy AWS Free Tier RDS"]
+#     types:
+#       - completed
+
+on:
+  push:
+    branches: [ master ]
 
 env:
   AWS_REGION: 'us-east-1'
@@ -14,6 +15,7 @@ env:
 permissions:
   id-token: write  # Required for OIDC
   contents: read
+  secrets: read    # Required to access GitHub secrets
 
 jobs:
   load-data:
@@ -31,28 +33,23 @@ jobs:
           role-to-assume: ${{ vars.AWS_IAM_ROLE_ARN }}
           role-session-name: github-actions-rds
 
-      # 3. Install Terraform
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform-version: "1.5.7"
-
-      # 4. Get Terraform outputs as JSON
-      - name: Fetch Terraform Outputs
-        id: tf-outputs
-        run: |
-          terraform output -json > outputs.json
-          echo "TF_OUTPUTS=$(cat outputs.json)" >> $GITHUB_OUTPUT
-        working-directory: ./terraform
-
-      # 5. Set up Python
+      # 3. Set up Python
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
-      # 6. Run Python script
+      # 4. Install Python dependencies
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scripts/requirements.txt
+
+      # 5. Run Python script with secrets
       - name: Load Data to RDS
         env:
-          TF_OUTPUTS: ${{ steps.tf-outputs.outputs.TF_OUTPUTS }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.RDS_DBNAME }}      # Database name
+          DB_PORT: ${{ secrets.RDS_SECRET_ARN }}       # e.g., 5432 for PostgreSQL
         run: python scripts/load_to_rds.py
