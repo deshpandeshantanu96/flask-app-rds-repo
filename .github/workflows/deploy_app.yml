@@ -48,6 +48,23 @@ jobs:
         SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[0].GroupId' --output text)
         echo "SG_ID=$SG_ID" >> $GITHUB_ENV
 
+    - name: Update Security Group to allow SSH and HTTP
+      run: |
+        echo "Authorizing inbound SSH (port 22) and HTTP (port 8000) traffic on SG ${{ env.SG_ID }}"
+
+        aws ec2 authorize-security-group-ingress \
+          --group-id ${{ env.SG_ID }} \
+          --protocol tcp \
+          --port 22 \
+          --cidr 0.0.0.0/0 || echo "Rule for SSH already exists"
+
+        aws ec2 authorize-security-group-ingress \
+          --group-id ${{ env.SG_ID }} \
+          --protocol tcp \
+          --port 8000 \
+          --cidr 0.0.0.0/0 || echo "Rule for HTTP already exists"
+
+
     - name: Launch EC2 Instance with new key pair
       id: ec2
       run: |
