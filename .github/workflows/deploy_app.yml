@@ -85,26 +85,65 @@ jobs:
       run: |
         sleep 60  # wait for EC2 to be ready
 
+    # - name: Install FastAPI & Start App
+    #   run: |
+    #     ssh -o StrictHostKeyChecking=no -i fastapi-key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+    #     sudo yum update -y
+    #     sudo yum install git python3 -y
+    #     python3 -m venv venvfastapi-key
+    #     source venv/bin/activate
+    #     git clone https://github.com/${{ github.repository }} app
+    #     cd app
+    #     pip install -r requirements.txt
+
+    #     echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
+    #     echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+    #     echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+    #     echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+    #     echo "DB_PORT=3306" >> .env
+
+    #     nohup venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 &
+    #     EOF
+
     - name: Install FastAPI & Start App
       run: |
         ssh -o StrictHostKeyChecking=no -i fastapi-key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
         sudo yum update -y
-        sudo yum install git python3 -y
+        sudo yum install git python3 python3-venv -y
+
+        # Create and activate venv
         python3 -m venv venv
         source venv/bin/activate
-        git clone https://github.com/${{ github.repository }} app
+
+        # Clone repo if not exists, else pull latest
+        if [ ! -d app ]; then
+          git clone https://github.com/${{ github.repository }} app
+        else
+          cd app
+          git pull
+          cd ..
+        fi
+
         cd app
+        pip install --upgrade pip
         pip install -r requirements.txt
 
-        echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
-        echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-        echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-        echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
-        echo "DB_PORT=3306" >> .env
+        # Write .env file
+        cat > .env << ENV_EOF
+        DB_HOST=${{ secrets.DB_HOST }}
+        DB_USER=${{ secrets.DB_USER }}
+        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+        DB_NAME=${{ secrets.DB_NAME }}
+        DB_PORT=3306
+        ENV_EOF
 
-        nohup venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 &
+        # Start uvicorn in background with nohup
+        nohup venv/bin/uvicorn backend:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 &
         EOF
+
 
     - name: Show Public URL
       run: |
-        echo "✅ Deployed at: http://${{ env.EC2_PUBLIC_IP }}:8000"
+        echo "✅ Your FastAPI app is deployed and running!"
+        echo "🌐 Open the app here: http://${{ env.EC2_PUBLIC_IP }}:8000"
+
