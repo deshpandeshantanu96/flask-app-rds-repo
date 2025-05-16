@@ -31,7 +31,7 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
-        working-directory: terraform
+        working-directory: ./terraform
 
       - name: Generate random DB password
         id: generate_password
@@ -41,34 +41,45 @@ jobs:
           echo "::add-mask::$PASSWORD"
 
       - name: Terraform Plan
-        run: terraform -chdir=terraform plan \
-          -var="aws_region=${{ env.AWS_REGION }}" \
-          -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
-          -var="db_password=${{ env.DB_PASSWORD }}" \
-          -var-file="rds.tfvars"
+        run: |
+          terraform plan \
+            -var="aws_region=${{ env.AWS_REGION }}" \
+            -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
+            -var="db_password=${{ env.DB_PASSWORD }}" \
+            -var-file="rds.tfvars"
+        working-directory: ./terraform
 
       - name: Terraform Apply
-        run: terraform -chdir=terraform apply -auto-approve \
-          -var="aws_region=${{ env.AWS_REGION }}" \
-          -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
-          -var="db_password=${{ env.DB_PASSWORD }}" \
-          -var-file="rds.tfvars"
-
+        run: |
+          terraform apply -auto-approve \
+            -var="aws_region=${{ env.AWS_REGION }}" \
+            -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
+            -var="db_password=${{ env.DB_PASSWORD }}" \
+            -var-file="rds.tfvars"
+        working-directory: ./terraform
 
       - name: Save Terraform outputs
         id: save_outputs
-        run: terraform output -json > terraform-outputs.json
-        working-directory: terraform
+        run: |
+          terraform output -json > terraform-outputs.json
+          cat terraform-outputs.json
+        working-directory: ./terraform
+
+      - name: Upload Terraform outputs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs
+          path: terraform/terraform-outputs.json
 
       - name: Parse Terraform outputs
         id: parse_outputs
         run: |
           echo "Parsing Terraform outputs..."
-          export DB_HOST=$(jq -r '.rds_endpoint.value' terraform/terraform-outputs.json)
-          export DB_USERNAME=$(jq -r '.rds_username.value' terraform/terraform-outputs.json)
-          export DB_PASSWORD=$(jq -r '.db_password.value' terraform/terraform-outputs.json)
-          export DB_NAME=$(jq -r '.rds_db_name.value' terraform/terraform-outputs.json)
-          export DB_PORT=$(jq -r '.rds_port.value' terraform/terraform-outputs.json)
+          DB_HOST=$(jq -r '.rds_endpoint.value' terraform/terraform-outputs.json)
+          DB_USERNAME=$(jq -r '.rds_username.value' terraform/terraform-outputs.json)
+          DB_PASSWORD=$(jq -r '.db_password.value' terraform/terraform-outputs.json)
+          DB_NAME=$(jq -r '.rds_db_name.value' terraform/terraform-outputs.json)
+          DB_PORT=$(jq -r '.rds_port.value' terraform/terraform-outputs.json)
 
           echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
           echo "DB_USERNAME=$DB_USERNAME" >> $GITHUB_ENV
@@ -76,15 +87,29 @@ jobs:
           echo "DB_NAME=$DB_NAME" >> $GITHUB_ENV
           echo "DB_PORT=$DB_PORT" >> $GITHUB_ENV
 
+          # Mask sensitive values in logs
+          echo "::add-mask::$DB_PASSWORD"
+          echo "::add-mask::$DB_HOST"
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.10
+          python-version: "3.10"
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r scripts/requirements.txt
+
+      - name: Wait for RDS to be available
+        run: |
+          echo "Waiting for RDS endpoint to become available..."
+          export PGPASSWORD=${{ env.DB_PASSWORD }}
+          until pg_isready -h ${{ env.DB_HOST }} -p ${{ env.DB_PORT }} -U ${{ env.DB_USERNAME }}; do
+            echo "Waiting for database connection..."
+            sleep 10
+          done
+          echo "Database is now available!"
 
       - name: Load data into RDS
         env:
@@ -94,5 +119,3 @@ jobs:
           DB_NAME: ${{ env.DB_NAME }}
           DB_PORT: ${{ env.DB_PORT }}
         run: python scripts/load_to_rds.py
-
-        #code:107
