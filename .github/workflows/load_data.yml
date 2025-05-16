@@ -45,11 +45,42 @@ jobs:
           pip install -r scripts/requirements.txt
 
       # 5. Run Python script with secrets
+      # - name: Load Data to RDS
+      #   env:
+      #     DB_HOST: ${{ secrets.RDS_HOST }}
+      #     DB_USERNAME: ${{ secrets.RDS_USERNAME }}
+      #     DB_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+      #     DB_NAME: ${{ secrets.RDS_DBNAME }}      # Database name
+      #     DB_PORT: ${{ secrets.RDS_SECRET_ARN }}       # e.g., 5432 for PostgreSQL
+      #   run: python scripts/load_to_rds.py
+
+      - name: Download Terraform outputs artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-outputs
+          path: .
+
+      - name: Parse Terraform outputs
+        id: parse_outputs
+        run: |
+          echo "Parsing Terraform outputs..."
+          export DB_HOST=$(jq -r '.rds_endpoint.value' terraform-outputs.json)
+          export DB_USERNAME=$(jq -r '.rds_username.value' terraform-outputs.json)
+          export DB_PASSWORD=$(jq -r '.rds_password.value' terraform-outputs.json)
+          export DB_NAME=$(jq -r '.rds_db_name.value' terraform-outputs.json)
+          export DB_PORT=$(jq -r '.rds_port.value' terraform-outputs.json)
+
+          echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
+          echo "DB_USERNAME=$DB_USERNAME" >> $GITHUB_ENV
+          echo "DB_PASSWORD=$DB_PASSWORD" >> $GITHUB_ENV
+          echo "DB_NAME=$DB_NAME" >> $GITHUB_ENV
+          echo "DB_PORT=$DB_PORT" >> $GITHUB_ENV
+
       - name: Load Data to RDS
         env:
-          DB_HOST: ${{ secrets.RDS_HOST }}
-          DB_USERNAME: ${{ secrets.RDS_USERNAME }}
-          DB_PASSWORD: ${{ secrets.RDS_PASSWORD }}
-          DB_NAME: ${{ secrets.RDS_DBNAME }}      # Database name
-          DB_PORT: ${{ secrets.RDS_SECRET_ARN }}       # e.g., 5432 for PostgreSQL
+          DB_HOST: ${{ env.DB_HOST }}
+          DB_USERNAME: ${{ env.DB_USERNAME }}
+          DB_PASSWORD: ${{ env.DB_PASSWORD }}
+          DB_NAME: ${{ env.DB_NAME }}
+          DB_PORT: ${{ env.DB_PORT }}
         run: python scripts/load_to_rds.py

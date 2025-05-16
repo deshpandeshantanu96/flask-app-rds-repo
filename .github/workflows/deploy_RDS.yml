@@ -58,6 +58,17 @@ jobs:
             -var-file="rds.tfvars"
         working-directory: terraform
 
+      - name: Save Terraform outputs
+        run: terraform output -json > terraform-outputs.json
+        working-directory: terraform
+
+      - name: Upload Terraform outputs artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-outputs
+          path: terraform/terraform-outputs.json
+
+
       - name: 📤 Output RDS connection details
         run: |
           echo "RDS Endpoint: $(terraform output -raw rds_endpoint)"
