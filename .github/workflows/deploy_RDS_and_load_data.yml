@@ -41,20 +41,19 @@ jobs:
           echo "::add-mask::$PASSWORD"
 
       - name: Terraform Plan
-        run: terraform plan \
+        run: terraform -chdir=terraform plan \
           -var="aws_region=${{ env.AWS_REGION }}" \
           -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
           -var="db_password=${{ env.DB_PASSWORD }}" \
           -var-file="rds.tfvars"
-        working-directory: terraform
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve \
+        run: terraform -chdir=terraform apply -auto-approve \
           -var="aws_region=${{ env.AWS_REGION }}" \
           -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
           -var="db_password=${{ env.DB_PASSWORD }}" \
           -var-file="rds.tfvars"
-        working-directory: terraform
+
 
       - name: Save Terraform outputs
         id: save_outputs
