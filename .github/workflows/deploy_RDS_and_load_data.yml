@@ -47,9 +47,11 @@ jobs:
         env:
           AWS_REGION: us-east-1
           SECRET_NAME: fetch_master_password
-          SECRET_VALUE: '{"password":$PASSWORD}'  # JSON format
+          PASSWORD: ${{ env.DB_PASSWORD }}
         run: |
-          # Check if secret exists
+          SECRET_VALUE="{\"password\":\"$PASSWORD\"}"
+          echo "Using secret value: $SECRET_VALUE"
+          
           if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" 2>/dev/null; then
             echo "Secret $SECRET_NAME already exists, updating it..."
             aws secretsmanager put-secret-value --secret-id "$SECRET_NAME" --secret-string "$SECRET_VALUE" --region "$AWS_REGION"
@@ -102,6 +104,7 @@ jobs:
           # Other fields
           DB_USERNAME=$(jq -r '.rds_username.value' terraform_output_clean.json)
           DB_NAME=$(jq -r '.rds_db_name.value' terraform_output_clean.json)
+          DB_INSTANCE_IDENTIFIER=$(jq -r '.rds_identifier.value' terraform_output.json)
 
           # Export to GitHub env
           echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
