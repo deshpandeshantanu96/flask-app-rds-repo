@@ -82,11 +82,11 @@ jobs:
         id: parse_outputs
         run: |
           echo "Parsing Terraform outputs..."
-          DB_HOST=$(jq -r '.rds_endpoint.value' terraform/clean_output.json)
-          DB_USERNAME=$(jq -r '.rds_username.value' terraform/clean_output.json)
-          DB_PASSWORD=$(jq -r '.db_password.value' terraform/clean_output.json)
-          DB_NAME=$(jq -r '.rds_db_name.value' terraform/clean_output.json)
-          DB_PORT=$(jq -r '.rds_port.value' terraform/clean_output.json)
+          DB_HOST=$(jq -r '.rds_endpoint.value' terraform/terraform-outputs.json)
+          DB_USERNAME=$(jq -r '.rds_username.value' terraform/terraform-outputs.json)
+          DB_PASSWORD=$(jq -r '.db_password.value' terraform/terraform-outputs.json)
+          DB_NAME=$(jq -r '.rds_db_name.value' terraform/terraform-outputs.json)
+          DB_PORT=$(jq -r '.rds_port.value' terraform/terraform-outputs.json)
 
           echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
           echo "DB_USERNAME=$DB_USERNAME" >> $GITHUB_ENV
