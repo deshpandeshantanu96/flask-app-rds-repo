@@ -1,3 +1,4 @@
+"""
 import pandas as pd
 from sqlalchemy import create_engine, exc, text
 import os
@@ -143,3 +144,166 @@ if __name__ == "__main__":
     if load_data_to_rds():
         sys.exit(0)
     sys.exit(1)
+"""
+
+import pandas as pd
+from sqlalchemy import create_engine, exc, text
+import os
+import logging
+import sys
+import boto3
+import json
+import time
+from urllib.parse import quote_plus
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+class RDSConnectionManager:
+    """Handles secure RDS connections with Secrets Manager integration"""
+    
+    def __init__(self):
+        self.max_retries = 3
+        self.retry_delay = 5
+        
+    def get_secret(self, secret_name, region_name="us-east-1"):
+        """Fetch secret from AWS Secrets Manager with retry logic"""
+        session = boto3.session.Session()
+        client = session.client(
+            service_name='secretsmanager',
+            region_name=region_name
+        )
+        
+        for attempt in range(self.max_retries):
+            try:
+                response = client.get_secret_value(SecretId=secret_name)
+                if 'SecretString' in response:
+                    try:
+                        return json.loads(response['SecretString'])
+                    except json.JSONDecodeError:
+                        return response['SecretString']
+                return response.get('SecretBinary')
+            except Exception as e:
+                if attempt == self.max_retries - 1:
+                    logger.error(f"Failed to retrieve secret after {self.max_retries} attempts: {str(e)}")
+                    raise
+                logger.warning(f"Secret retrieval attempt {attempt + 1} failed, retrying...")
+                time.sleep(self.retry_delay)
+    
+    def get_rds_config(self):
+        """Get validated RDS configuration with fallbacks"""
+        try:
+            config = {
+                "host": os.getenv("DB_HOST"),
+                "port": int(os.getenv("DB_PORT", "3306")),
+                "db_name": os.getenv("DB_NAME"),
+                "username": os.getenv("DB_USERNAME"),
+                "secret_name": os.getenv("RDS_PASSWORD_SECRET_NAME"),
+                "ssl_ca": os.getenv("RDS_SSL_CA_PATH", "/etc/ssl/certs/ca-certificates.crt")
+            }
+            
+            # Validate required fields
+            missing = [k for k, v in config.items() if not v and k != "port"]
+            if missing:
+                raise ValueError(f"Missing required config: {missing}")
+            
+            # Get password from Secrets Manager
+            secret = self.get_secret(config["secret_name"])
+            config["password"] = secret.get("password") if isinstance(secret, dict) else secret
+            
+            if not config["password"]:
+                raise ValueError("No password found in secret")
+                
+            return config
+            
+        except ValueError as ve:
+            logger.error(f"Configuration validation error: {str(ve)}")
+            raise
+        except Exception as e:
+            logger.error(f"Configuration error: {str(e)}")
+            raise
+    
+    def create_engine(self, config):
+        """Create SQLAlchemy engine with robust error handling"""
+        connection_string = (
+            f"mysql+pymysql://{quote_plus(config['username'])}:{quote_plus(config['password'])}"
+            f"@{config['host']}:{config['port']}/{config['db_name']}"
+            "?charset=utf8mb4"
+            "&connect_timeout=10"
+            "&ssl_ca={config['ssl_ca']}"
+        )
+        
+        for attempt in range(self.max_retries):
+            try:
+                engine = create_engine(
+                    connection_string,
+                    pool_pre_ping=True,
+                    pool_recycle=3600,
+                    pool_size=5,
+                    max_overflow=10,
+                    echo=False
+                )
+                
+                # Test connection
+                with engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                
+                logger.info("Database connection established")
+                return engine
+                
+            except exc.SQLAlchemyError as e:
+                logger.error(f"Connection attempt {attempt + 1} failed: {str(e)}")
+                if attempt == self.max_retries - 1:
+                    raise
+                time.sleep(self.retry_delay * (attempt + 1))
+
+def load_data_to_rds():
+    """Main data loading function with comprehensive error handling"""
+    try:
+        manager = RDSConnectionManager()
+        
+        # 1. Get configuration
+        config = manager.get_rds_config()
+        logger.info("RDS configuration validated")
+        
+        # 2. Establish connection
+        engine = manager.create_engine(config)
+        
+        # 3. Load and transform data
+        df = pd.read_csv('customers-10000.csv')
+        logger.info(f"Loaded {len(df)} records from CSV")
+        
+        # 4. Write to database
+        df.to_sql(
+            name='customers',
+            con=engine,
+            if_exists='append',
+            index=False,
+            chunksize=1000,
+            method='multi'
+        )
+        
+        logger.info("Data successfully loaded to RDS")
+        return True
+        
+    except pd.errors.EmptyDataError:
+        logger.error("Input CSV file is empty or invalid")
+    except exc.SQLAlchemyError as e:
+        logger.error(f"Database operation failed: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        logger.exception(e)  # Log full stack trace
+        
+    return False
+
+if __name__ == "__main__":
+    try:
+        success = load_data_to_rds()
+        sys.exit(0 if success else 1)
+    except KeyboardInterrupt:
+        logger.info("Process interrupted by user")
+        sys.exit(1)
