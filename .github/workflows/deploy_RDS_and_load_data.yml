@@ -58,28 +58,43 @@ jobs:
             -var-file="rds.tfvars"
         working-directory: ./terraform
 
-      - name: Save Terraform Outputs
+      - name: Process Terraform Outputs
         id: process_outputs
         run: |
           echo "Processing Terraform outputs..."
           
-          # 1. Save raw output to file
-          terraform output -json > raw_output.json
+          # 1. Save raw output directly to terraform folder
+          terraform output -json > ./terraform/raw_output.json
           
-          # 2. Clean the output by extracting just the JSON content
-          # Using both head/tail and awk for robust extraction
-          cat raw_output.json | head -n 100 | awk 'BEGIN{found=0} /{/{found=1} found{print} /}/{exit}' > clean_output.json
+          # 2. Extract complete JSON content with proper path
+          awk '
+            BEGIN {recording=0; depth=0}
+            /{/ {if (!recording) recording=1; depth++}
+            recording {print}
+            /}/ {depth--; if (depth == 0) recording=0}
+          ' ./terraform/raw_output.json > ./terraform/clean_output.json
           
-          # 3. Validate JSON structure
-          if ! jq empty clean_output.json; then
-            echo "::warning::JSON validation failed, attempting repair..."
-            # Fallback method for malformed JSON
-            cat raw_output.json | grep -zoP '(?s)\{.*\}' > clean_output.json || true
+          # 3. Validate JSON is not empty
+          if [[ $(jq length ./terraform/clean_output.json) -eq 0 ]]; then
+            echo "::error::Empty JSON output detected!"
+            echo "Debug info:"
+            echo "Raw output size: $(wc -c < ./terraform/raw_output.json) bytes"
+            echo "First 100 chars: $(head -c 100 ./terraform/raw_output.json)"
+            exit 1
           fi
           
-          # 4. Final validation and parsing
-          echo "Final cleaned JSON:"
-          cat clean_output.json
+          # 4. Parse values from cleaned JSON
+          echo "Parsing values from ./terraform/clean_output.json"
+          jq -r 'to_entries[] | "\(.key | ascii_upcase)=\(.value.value)"' ./terraform/clean_output.json >> $GITHUB_ENV
+          
+          # 5. Mask sensitive values
+          echo "::add-mask::$RDS_USERNAME"
+          echo "::add-mask::$DB_PASSWORD"
+          
+          # 6. Debug output
+          echo "Final extracted values:"
+          jq -r 'to_entries[] | "\(.key)=\(.value.value)"' ./terraform/clean_output.json
+        working-directory: ./terraform
 
       - name: Upload Terraform outputs artifact
         uses: actions/upload-artifact@v4
