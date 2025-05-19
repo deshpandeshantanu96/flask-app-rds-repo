@@ -104,7 +104,7 @@ jobs:
           # Other fields
           DB_USERNAME=$(jq -r '.rds_username.value' terraform_output_clean.json)
           DB_NAME=$(jq -r '.rds_db_name.value' terraform_output_clean.json)
-          DB_INSTANCE_IDENTIFIER=$(jq -r '.rds_identifier.value' terraform_output.json)
+          DB_INSTANCE_IDENTIFIER=$(jq -r '.rds_identifier.value' terraform_output_clean.json)
 
           # Export to GitHub env
           echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
