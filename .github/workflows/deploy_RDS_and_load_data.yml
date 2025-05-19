@@ -59,24 +59,18 @@ jobs:
         working-directory: ./terraform
 
       - name: Write Terraform output to JSON file
-        run: terraform output -json > clean_output.json
+        run: terraform output -json > terraform_output.json
         working-directory: ./terraform
-
-      - name: Upload Terraform outputs artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-outputs
-          path: terraform/terraform-outputs.json
 
       - name: Parse Terraform outputs
         id: parse_outputs
         run: |
           echo "Parsing Terraform outputs..."
-          DB_HOST=$(jq -r '.rds_endpoint.value' terraform/clean_output.json)
-          DB_USERNAME=$(jq -r '.rds_username.value' terraform/clean_output.json)
-          DB_PASSWORD=$(jq -r '.db_password.value' terraform/clean_output.json)
-          DB_NAME=$(jq -r '.rds_db_name.value' terraform/clean_output.json)
-          DB_PORT=$(jq -r '.rds_port.value' terraform/clean_output.json)
+          DB_HOST=$(jq -r '.rds_endpoint.value' terraform/terraform_output.json)
+          DB_USERNAME=$(jq -r '.rds_username.value' terraform/terraform_output.json)
+          DB_PASSWORD=$(jq -r '.db_password.value' terraform/terraform_output.json)
+          DB_NAME=$(jq -r '.rds_db_name.value' terraform/terraform_output.json)
+          DB_PORT=$(jq -r '.rds_port.value' terraform/terraform_output.json)
 
           echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
           echo "DB_USERNAME=$DB_USERNAME" >> $GITHUB_ENV

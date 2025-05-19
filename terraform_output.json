@@ -1,0 +1,28 @@
+{
+    "rds_arn": {
+      "sensitive": false,
+      "type": "string",
+      "value": "arn:aws:rds:us-east-1:445567099825:db:my-rds-instance-7795c203"
+    },
+    "rds_db_name": {
+      "sensitive": false,
+      "type": "string",
+      "value": "mydatabase"
+    },
+    "rds_endpoint": {
+      "sensitive": false,
+      "type": "string",
+      "value": "my-rds-instance-7795c203.cshc0wimskn2.us-east-1.rds.amazonaws.com:3306"
+    },
+    "rds_instance_id": {
+      "sensitive": false,
+      "type": "string",
+      "value": "db-D5S543MZC7BIAIOJYY5SVRPUIA"
+    },
+    "rds_username": {
+      "sensitive": true,
+      "type": "string",
+      "value": "admin"
+    }
+}
+  
