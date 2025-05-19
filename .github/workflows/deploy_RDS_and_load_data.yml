@@ -58,7 +58,7 @@ jobs:
             -var-file="rds.tfvars"
         working-directory: ./terraform
 
-    - name: Save Terraform output to JSON
+      - name: Save Terraform output to JSON
         run: |
           echo "Saving Terraform outputs to a clean JSON file..."
           terraform output -json > terraform/terraform_output.json
