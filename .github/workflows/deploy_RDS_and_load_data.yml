@@ -61,7 +61,7 @@ jobs:
       - name: Save Terraform output to JSON
         run: |
           echo "Saving Terraform outputs to a clean JSON file..."
-          terraform output -json > terraform/terraform_output.json
+          terraform output -json > terraform_output.json
         working-directory: ./terraform
 
 
@@ -71,15 +71,15 @@ jobs:
           echo "Parsing Terraform outputs..."
 
           # Read the full endpoint (host:port)
-          DB_HOST_PORT=$(jq -r '.rds_endpoint.value' terraform/terraform_output.json)
+          DB_HOST_PORT=$(jq -r '.rds_endpoint.value' terraform_output.json)
           
           # Split into host and port
           DB_HOST=$(echo "$DB_HOST_PORT" | cut -d':' -f1)
           DB_PORT=$(echo "$DB_HOST_PORT" | cut -d':' -f2)
 
           # Other fields
-          DB_USERNAME=$(jq -r '.rds_username.value' terraform/terraform_output.json)
-          DB_NAME=$(jq -r '.rds_db_name.value' terraform/terraform_output.json)
+          DB_USERNAME=$(jq -r '.rds_username.value' terraform_output.json)
+          DB_NAME=$(jq -r '.rds_db_name.value' terraform_output.json)
 
           # Export to GitHub env
           echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
