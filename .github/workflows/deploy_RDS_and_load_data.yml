@@ -58,40 +58,23 @@ jobs:
             -var-file="rds.tfvars"
         working-directory: ./terraform
 
-      - name: Process Terraform Outputs
-        id: process_outputs
+      - name: Process Terraform Outputs with Python
+        id: tf_outputs
         run: |
-          echo "Processing Terraform outputs..."
+          # 1. Get raw JSON output
+          JSON_OUTPUT=$(terraform output -json)
           
-          # 1. Save raw output (now relative to terraform folder)
-          terraform output -json > ${GITHUB_WORKSPACE}/terraform/raw_output.json
+          # 2. Pass to Python script for processing
+          python3 ./scripts/process_outputs.py "$JSON_OUTPUT" > ./terraform/processed_outputs.json
           
-          # 2. Extract complete JSON content
-          awk '
-            BEGIN {recording=0; depth=0}
-            /{/ {if (!recording) recording=1; depth++}
-            recording {print}
-            /}/ {depth--; if (depth == 0) recording=0}
-          ' ${GITHUB_WORKSPACE}/terraform/raw_output.json > ${GITHUB_WORKSPACE}/terraform/clean_output.json
+          # 3. Read Python output back into workflow
+          RDS_ENDPOINT=$(jq -r '.rds_endpoint' ./terraform/processed_outputs.json)
+          DB_USERNAME=$(jq -r '.db_username' ./terraform/processed_outputs.json)
           
-          # 3. Validate JSON
-          if ! jq empty clean_output.json; then
-            echo "::error::Invalid JSON output"
-            echo "Debug info:"
-            echo "Raw output:"
-            cat raw_output.json
-            exit 1
-          fi
-          
-          # 4. Parse values
-          jq -r 'to_entries[] | "\(.key | ascii_upcase)=\(.value.value)"' clean_output.json >> $GITHUB_ENV
-          
-          # 5. Mask sensitive values
-          echo "::add-mask::$RDS_USERNAME"
-        
-          # 6. Debug output
-          echo "Final extracted values:"
-          jq -r 'to_entries[] | "\(.key)=\(.value.value)"' clean_output.json
+          echo "RDS_ENDPOINT=$RDS_ENDPOINT" >> $GITHUB_ENV
+          echo "DB_USERNAME=$DB_USERNAME" >> $GITHUB_ENV
+          echo "::add-mask::$DB_USERNAME"
+        working-directory: ./terraform
 
       - name: Upload Terraform outputs artifact
         uses: actions/upload-artifact@v4
