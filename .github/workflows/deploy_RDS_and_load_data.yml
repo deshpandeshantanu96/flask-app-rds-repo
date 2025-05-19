@@ -43,6 +43,22 @@ jobs:
           echo "DB_PASSWORD=$PASSWORD" >> $GITHUB_ENV
           echo "::add-mask::$PASSWORD"
 
+      - name: Create RDS password secret in AWS Secrets Manager
+        env:
+          AWS_REGION: us-east-1
+          SECRET_NAME: fetch_master_password
+          SECRET_VALUE: '{"password":$PASSWORD}'  # JSON format
+        run: |
+          # Check if secret exists
+          if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" 2>/dev/null; then
+            echo "Secret $SECRET_NAME already exists, updating it..."
+            aws secretsmanager put-secret-value --secret-id "$SECRET_NAME" --secret-string "$SECRET_VALUE" --region "$AWS_REGION"
+          else
+            echo "Creating secret $SECRET_NAME..."
+            aws secretsmanager create-secret --name "$SECRET_NAME" --secret-string "$SECRET_VALUE" --region "$AWS_REGION"
+          fi
+
+
       - name: Terraform Plan
         run: |
           terraform plan \
