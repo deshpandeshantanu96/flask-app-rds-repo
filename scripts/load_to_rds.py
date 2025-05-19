@@ -63,7 +63,7 @@ def get_rds_config():
             "host": os.getenv("DB_HOST"),
             "db_name": os.getenv("DB_NAME"),
             "username": os.getenv("DB_USERNAME"),
-            "password": os.getenv("DB_PASSWORD"),
+            "password": password,
             "port": port
         }
 
