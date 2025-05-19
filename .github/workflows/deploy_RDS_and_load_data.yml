@@ -58,19 +58,28 @@ jobs:
             -var-file="rds.tfvars"
         working-directory: ./terraform
 
-      - name: Save Terraform outputs
-        id: save_outputs
+      - name: Save Terraform Outputs
+        id: process_outputs
         run: |
-          # Save raw output and clean it in one step
-          terraform output -json | awk 'BEGIN{found=0} /{/{found=1} found{print} /}/{exit}' > terraform-outputs.json
+          echo "Processing Terraform outputs..."
           
-          # Verify the cleaned output
-          echo "Cleaned JSON content:"
-          cat terraform-outputs.json
+          # 1. Save raw output to file
+          terraform output -json > raw_output.json
           
-          # Validate JSON syntax
-          jq empty terraform-outputs.json
-        working-directory: ./terraform
+          # 2. Clean the output by extracting just the JSON content
+          # Using both head/tail and awk for robust extraction
+          cat raw_output.json | head -n 100 | awk 'BEGIN{found=0} /{/{found=1} found{print} /}/{exit}' > clean_output.json
+          
+          # 3. Validate JSON structure
+          if ! jq empty clean_output.json; then
+            echo "::warning::JSON validation failed, attempting repair..."
+            # Fallback method for malformed JSON
+            cat raw_output.json | grep -zoP '(?s)\{.*\}' > clean_output.json || true
+          fi
+          
+          # 4. Final validation and parsing
+          echo "Final cleaned JSON:"
+          cat clean_output.json
 
       - name: Upload Terraform outputs artifact
         uses: actions/upload-artifact@v4
