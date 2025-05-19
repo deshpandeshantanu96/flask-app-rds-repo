@@ -67,9 +67,8 @@ jobs:
       - name: Clean terraform output JSON
         run: |
           # Extract JSON block only (from first { to last })
-          sed -n '/{/,/}/p' terraform_output.json > terraform_output_clean.json
+          sed -n '/^{/,/^}/p' terraform_output.json > terraform_output_clean.json
         working-directory: ./terraform
-
 
       - name: Parse Terraform outputs
         id: parse_outputs
