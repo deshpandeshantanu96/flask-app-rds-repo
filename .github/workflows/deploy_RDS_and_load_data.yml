@@ -58,29 +58,41 @@ jobs:
             -var-file="rds.tfvars"
         working-directory: ./terraform
 
-      - name: Write Terraform output to JSON file
-        run: terraform output -json > terraform_output.json
+    - name: Save Terraform output to JSON
+        run: |
+          echo "Saving Terraform outputs to a clean JSON file..."
+          terraform output -json > terraform/terraform_output.json
         working-directory: ./terraform
+
 
       - name: Parse Terraform outputs
         id: parse_outputs
         run: |
           echo "Parsing Terraform outputs..."
-          DB_HOST=$(jq -r '.rds_endpoint.value' terraform/terraform_output.json)
+
+          # Read the full endpoint (host:port)
+          DB_HOST_PORT=$(jq -r '.rds_endpoint.value' terraform/terraform_output.json)
+          
+          # Split into host and port
+          DB_HOST=$(echo "$DB_HOST_PORT" | cut -d':' -f1)
+          DB_PORT=$(echo "$DB_HOST_PORT" | cut -d':' -f2)
+
+          # Other fields
           DB_USERNAME=$(jq -r '.rds_username.value' terraform/terraform_output.json)
-          DB_PASSWORD=$(jq -r '.db_password.value' terraform/terraform_output.json)
           DB_NAME=$(jq -r '.rds_db_name.value' terraform/terraform_output.json)
-          DB_PORT=$(jq -r '.rds_port.value' terraform/terraform_output.json)
 
+          # Export to GitHub env
           echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
-          echo "DB_USERNAME=$DB_USERNAME" >> $GITHUB_ENV
-          echo "DB_PASSWORD=$DB_PASSWORD" >> $GITHUB_ENV
-          echo "DB_NAME=$DB_NAME" >> $GITHUB_ENV
           echo "DB_PORT=$DB_PORT" >> $GITHUB_ENV
+          echo "DB_USERNAME=$DB_USERNAME" >> $GITHUB_ENV
+          echo "DB_NAME=$DB_NAME" >> $GITHUB_ENV
 
-          # Mask sensitive values in logs
-          echo "::add-mask::$DB_PASSWORD"
+          # Optionally: Print masked values for verification
           echo "::add-mask::$DB_HOST"
+          echo "::add-mask::$DB_PORT"
+          echo "::add-mask::$DB_USERNAME"
+        working-directory: ./terraform
+
 
       - name: Setup Python
         uses: actions/setup-python@v4
