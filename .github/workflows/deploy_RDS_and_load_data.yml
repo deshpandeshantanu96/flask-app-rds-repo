@@ -75,11 +75,13 @@ jobs:
         id: parse_outputs
         run: |
           echo "Parsing Terraform outputs..."
+          # Extract just the JSON portion (between first { and last })
+          awk 'BEGIN{found=0} /{/{found=1} found{print} /}/{exit}' raw_output.json > clean_output.json
           
-          # First clean the JSON file by extracting just the JSON content
-          sed -i 's/^.*{/{/' terraform/terraform-outputs.json
-          sed -i 's/}%0A.*$/}/' terraform/terraform-outputs.json
-          
+          # Verify the cleaned output
+          echo "Cleaned JSON content:"
+          cat clean_output.json
+
           DB_HOST=$(jq -r '.rds_endpoint.value' terraform/terraform-outputs.json)
           DB_USERNAME=$(jq -r '.rds_username.value' terraform/terraform-outputs.json)
           DB_PASSWORD=$(jq -r '.db_password.value' terraform/terraform-outputs.json)
