@@ -10,7 +10,7 @@ on:
 env:
   AWS_REGION: 'us-east-1'
   TF_VERSION: '1.5.7'
-  DB_INSTANCE_IDENTIFIER: 'free-tier-db-${{ github.run_id }}'
+  # DB_INSTANCE_IDENTIFIER: 'my-rds-instance-${{ github.run_id }}'
 
 jobs:
   deploy-and-load:
@@ -63,7 +63,6 @@ jobs:
         run: |
           terraform plan \
             -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
             -var="db_password=${{ env.DB_PASSWORD }}" \
             -var-file="rds.tfvars"
         working-directory: ./terraform
@@ -72,7 +71,6 @@ jobs:
         run: |
           terraform apply -auto-approve \
             -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="db_instance_identifier=${{ env.DB_INSTANCE_IDENTIFIER }}" \
             -var="db_password=${{ env.DB_PASSWORD }}" \
             -var-file="rds.tfvars"
         working-directory: ./terraform
@@ -138,7 +136,7 @@ jobs:
           echo "Waiting for RDS to be ready..."
           for i in {1..30}; do
             aws rds describe-db-instances \
-              --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+              --db-instance-identifier ${{ env.DB_INSTANCE_IDENTIFIER }} \
               --query 'DBInstances[0].DBInstanceStatus' \
               --output text | grep -q 'available' && break
             sleep 10

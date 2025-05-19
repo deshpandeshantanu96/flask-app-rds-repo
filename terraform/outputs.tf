@@ -23,3 +23,8 @@ output "rds_arn" {
   description = "The ARN of the RDS instance"
   value       = aws_db_instance.rds_instance.arn
 }
+
+output "rds_identifier" {
+  description = "The identfier of the RDS instance"
+  value       = aws_db_instance.rds_instance.identifier
+}
