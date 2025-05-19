@@ -3,10 +3,36 @@ from sqlalchemy import create_engine, exc, text
 import os
 import logging
 import sys
+import boto3
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def get_secret(secret_name, region_name="us-east-1"):
+    """
+    Fetch secret value from AWS Secrets Manager.
+    Returns the secret string or dict.
+    """
+    session = boto3.session.Session()
+    client = session.client(service_name='secretsmanager', region_name=region_name)
+
+    try:
+        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+    except Exception as e:
+        logger.error(f"Failed to retrieve secret {secret_name}: {str(e)}")
+        raise
+
+    secret = get_secret_value_response.get('SecretString')
+    if secret:
+        try:
+            return json.loads(secret)  # try to parse JSON
+        except json.JSONDecodeError:
+            return secret  # return as string if not JSON
+    else:
+        # Secret binary case (rare)
+        return get_secret_value_response.get('SecretBinary')
 
 def get_rds_config():
     """Get RDS configuration with robust error handling"""
@@ -18,6 +44,20 @@ def get_rds_config():
         except ValueError:
             logger.warning(f"Invalid port '{port_str}', using default 3306")
             port = 3306
+
+        # Fetch password secret name from env or hardcode
+        secret_name = os.getenv("RDS_PASSWORD_SECRET_NAME")
+        if not secret_name:
+            raise ValueError("RDS_PASSWORD_SECRET_NAME env var is not set")
+
+        secret_value = get_secret(secret_name)
+        # If secret is JSON, expect {"password": "actual_password"}
+        if isinstance(secret_value, dict):
+            password = secret_value.get("password")
+            if not password:
+                raise ValueError(f"No 'password' field found in secret {secret_name}")
+        else:
+            password = secret_value
 
         config = {
             "host": os.getenv("DB_HOST"),
