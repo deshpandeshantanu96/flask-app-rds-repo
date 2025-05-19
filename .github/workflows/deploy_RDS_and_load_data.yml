@@ -109,15 +109,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r scripts/requirements.txt
 
-      - name: Wait for RDS to be available
-        run: |
-          echo "Waiting for RDS endpoint to become available..."
-          export PGPASSWORD=${{ env.DB_PASSWORD }}
-          until pg_isready -h ${{ env.DB_HOST }} -p ${{ env.DB_PORT }} -U ${{ env.DB_USERNAME }}; do
-            echo "Waiting for database connection..."
-            sleep 10
-          done
-          echo "Database is now available!"
+      # - name: Wait for RDS to be available
+      #   run: |
+      #     echo "Waiting for RDS endpoint to become available..."
+      #     export PGPASSWORD=${{ env.DB_PASSWORD }}
+      #     until pg_isready -h ${{ env.DB_HOST }} -p ${{ env.DB_PORT }} -U ${{ env.DB_USERNAME }}; do
+      #       echo "Waiting for database connection..."
+      #       sleep 10
+      #     done
+      #     echo "Database is now available!"
 
       - name: Load data into RDS
         env:
