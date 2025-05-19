@@ -61,8 +61,15 @@ jobs:
       - name: Save Terraform outputs
         id: save_outputs
         run: |
-          terraform output -json > terraform-outputs.json
+          # Save raw output and clean it in one step
+          terraform output -json | awk 'BEGIN{found=0} /{/{found=1} found{print} /}/{exit}' > terraform-outputs.json
+          
+          # Verify the cleaned output
+          echo "Cleaned JSON content:"
           cat terraform-outputs.json
+          
+          # Validate JSON syntax
+          jq empty terraform-outputs.json
         working-directory: ./terraform
 
       - name: Upload Terraform outputs artifact
@@ -75,13 +82,6 @@ jobs:
         id: parse_outputs
         run: |
           echo "Parsing Terraform outputs..."
-          # Extract just the JSON portion (between first { and last })
-          awk 'BEGIN{found=0} /{/{found=1} found{print} /}/{exit}' raw_output.json > clean_output.json
-          
-          # Verify the cleaned output
-          echo "Cleaned JSON content:"
-          cat clean_output.json
-
           DB_HOST=$(jq -r '.rds_endpoint.value' terraform/clean_output.json)
           DB_USERNAME=$(jq -r '.rds_username.value' terraform/clean_output.json)
           DB_PASSWORD=$(jq -r '.db_password.value' terraform/clean_output.json)
