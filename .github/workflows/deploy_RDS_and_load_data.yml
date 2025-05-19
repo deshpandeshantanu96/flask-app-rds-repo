@@ -111,6 +111,7 @@ jobs:
           echo "DB_PORT=$DB_PORT" >> $GITHUB_ENV
           echo "DB_USERNAME=$DB_USERNAME" >> $GITHUB_ENV
           echo "DB_NAME=$DB_NAME" >> $GITHUB_ENV
+          echo "DB_INSTANCE_IDENTIFIER=$DB_INSTANCE_IDENTIFIER" >> $GITHUB_ENV
 
           # Optionally: Print masked values for verification
           echo "::add-mask::$DB_HOST"
@@ -131,27 +132,24 @@ jobs:
 
       - name: Wait for RDS Availability
         run: |
-          # Extract host and port
-          HOST=${DB_HOST%:*}
-          PORT=${DB_HOST#*:}
-          
-          # Wait until RDS is fully available
           echo "Waiting for RDS to be ready..."
           for i in {1..30}; do
             aws rds describe-db-instances \
-              --db-instance-identifier ${{ env.DB_INSTANCE_IDENTIFIER }} \
+              --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
               --query 'DBInstances[0].DBInstanceStatus' \
               --output text | grep -q 'available' && break
+            echo "RDS not available yet, retrying..."
             sleep 10
           done
-          
-          # Additional connection test
-          until nc -zv $HOST $PORT; do
-            sleep 5
+
+          echo "Waiting for network connectivity to $DB_HOST:$DB_PORT ..."
+          until nc -zv "$DB_HOST" "$DB_PORT"; do
             echo "Waiting for network connectivity..."
+            sleep 5
           done
         env:
           DB_HOST: ${{ env.DB_HOST }}
+          DB_PORT: ${{ env.DB_PORT }}
           DB_INSTANCE_IDENTIFIER: ${{ env.DB_INSTANCE_IDENTIFIER }}
           
       # - name: Wait for RDS to be available
