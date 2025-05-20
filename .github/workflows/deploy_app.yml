@@ -1,199 +1,215 @@
-name: 🚀 Deploy FastAPI App on AWS EC2
+  name: 🚀 Deploy FastAPI App on AWS EC2
 
-on:
-  workflow_dispatch:
+  on:
+    workflow_dispatch:
 
-env:
-  AWS_REGION: 'us-east-1'
+  env:
+    AWS_REGION: 'us-east-1'
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  jobs:
+    deploy:
+      runs-on: ubuntu-latest
 
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Create a unique EC2 key pair
-      id: create_keypair
-      run: |
-        set -e
-        # Generate unique key name with timestamp
-        KEY_NAME="fastapi-key-$(date +%s)"
-        KEY_FILE="${KEY_NAME}.pem"
+      - name: Create a unique EC2 key pair
+        id: create_keypair
+        run: |
+          set -eo pipefail  # Fail on any error in the pipeline
+          KEY_NAME="fastapi-key-$(date +%s)"
+          KEY_FILE="${KEY_NAME}.pem"
 
-        echo "Creating new key pair: $KEY_NAME"
-        KEY_MATERIAL=$(aws ec2 create-key-pair --key-name "$KEY_NAME" --query 'KeyMaterial' --output text)
-        echo "$KEY_MATERIAL" > "$KEY_FILE"
-        chmod 400 "$KEY_FILE"
+          echo "Creating key pair: $KEY_NAME..."
+          KEY_MATERIAL=$(aws ec2 create-key-pair \
+            --key-name "$KEY_NAME" \
+            --query 'KeyMaterial' \
+            --output text \
+            --region ${{ env.AWS_REGION }}  # Explicitly use the region
+          )
 
-        echo "::set-output name=key_name::$KEY_NAME"
-        echo "::set-output name=key_file::$KEY_FILE"
+          # Write key material to file atomically
+          echo "$KEY_MATERIAL" > "$KEY_FILE.tmp"
+          mv "$KEY_FILE.tmp" "$KEY_FILE"  # Atomic rename to avoid partial writes
+          chmod 400 "$KEY_FILE"
 
-    - name: Lookup VPC/Subnet/SG dynamically
-      run: |
-        VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
-        echo "VPC_ID=$VPC_ID" >> $GITHUB_ENV
+          # Verify the key was written
+          if [ ! -s "$KEY_FILE" ]; then
+            echo "❌ Error: Key file is empty!"
+            exit 1
+          fi
 
-        SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[0].SubnetId' --output text)
-        echo "SUBNET_ID=$SUBNET_ID" >> $GITHUB_ENV
+          # Set outputs for later steps
+          echo "key_name=$KEY_NAME" >> $GITHUB_OUTPUT
+          echo "key_file=$KEY_FILE" >> $GITHUB_OUTPUT
 
-        SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[0].GroupId' --output text)
-        echo "SG_ID=$SG_ID" >> $GITHUB_ENV
+          echo "✅ Key pair created: $KEY_NAME ($KEY_FILE)"
 
-    - name: Update Security Group to allow SSH and HTTP
-      run: |
-        echo "Authorizing inbound SSH (port 22) and HTTP (port 8000) traffic on SG ${{ env.SG_ID }}"
+      - name: Lookup VPC/Subnet/SG dynamically
+        run: |
+          VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
+          echo "VPC_ID=$VPC_ID" >> $GITHUB_ENV
 
-        aws ec2 authorize-security-group-ingress \
-          --group-id ${{ env.SG_ID }} \
-          --protocol tcp \
-          --port 22 \
-          --cidr 0.0.0.0/0 || echo "Rule for SSH already exists"
+          SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[0].SubnetId' --output text)
+          echo "SUBNET_ID=$SUBNET_ID" >> $GITHUB_ENV
 
-        aws ec2 authorize-security-group-ingress \
-          --group-id ${{ env.SG_ID }} \
-          --protocol tcp \
-          --port 8000 \
-          --cidr 0.0.0.0/0 || echo "Rule for HTTP already exists"
+          SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[0].GroupId' --output text)
+          echo "SG_ID=$SG_ID" >> $GITHUB_ENV
+
+      - name: Update Security Group to allow SSH and HTTP
+        run: |
+          echo "Authorizing inbound SSH (port 22) and HTTP (port 8000) traffic on SG ${{ env.SG_ID }}"
+
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ env.SG_ID }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr 0.0.0.0/0 || echo "Rule for SSH already exists"
+
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ env.SG_ID }} \
+            --protocol tcp \
+            --port 8000 \
+            --cidr 0.0.0.0/0 || echo "Rule for HTTP already exists"
 
 
-    - name: Launch EC2 Instance with new key pair
-      id: ec2
-      run: |
-        INSTANCE_ID=$(aws ec2 run-instances \
-          --image-id ami-0c02fb55956c7d316 \
-          --instance-type t2.micro \
-          --key-name ${{ steps.create_keypair.outputs.key_name }} \
-          --subnet-id ${{ env.SUBNET_ID }} \
-          --security-group-ids ${{ env.SG_ID }} \
-          --associate-public-ip-address \
-          --query 'Instances[0].InstanceId' --output text)
+      - name: Launch EC2 Instance with new key pair
+        id: ec2
+        run: |
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id ami-0c02fb55956c7d316 \
+            --instance-type t2.micro \
+            --key-name ${{ steps.create_keypair.outputs.key_name }} \
+            --subnet-id ${{ env.SUBNET_ID }} \
+            --security-group-ids ${{ env.SG_ID }} \
+            --associate-public-ip-address \
+            --query 'Instances[0].InstanceId' --output text)
 
-        echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
 
-        aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
 
-        PUBLIC_IP=$(aws ec2 describe-instances \
-          --instance-ids $INSTANCE_ID \
-          --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids $INSTANCE_ID \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 
-        echo "EC2_PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
+          echo "EC2_PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
 
-    - name: Wait for SSH to Become Available
-      run: sleep 60
+      - name: Wait for SSH to Become Available
+        run: sleep 60
 
-    # - name: Install FastAPI & Start App
-    #   run: |
-    #     chmod 400 ${{ steps.create_keypair.outputs.key_file }}
-        
-    #     ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
-    #     set -e
+      # - name: Install FastAPI & Start App
+      #   run: |
+      #     chmod 400 ${{ steps.create_keypair.outputs.key_file }}
+          
+      #     ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
+      #     set -e
 
-    #     sudo yum update -y
-    #     sudo yum install -y git python3 python3-venv
+      #     sudo yum update -y
+      #     sudo yum install -y git python3 python3-venv
 
-    #     python3 -m venv /home/ec2-user/venv
-    #     source /home/ec2-user/venv/bin/activate
+      #     python3 -m venv /home/ec2-user/venv
+      #     source /home/ec2-user/venv/bin/activate
 
-    #     if [ ! -d "/home/ec2-user/customer-app" ]; then
-    #       git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
-    #     else
-    #       cd /home/ec2-user/customer-app
-    #       git pull
-    #     fi
+      #     if [ ! -d "/home/ec2-user/customer-app" ]; then
+      #       git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
+      #     else
+      #       cd /home/ec2-user/customer-app
+      #       git pull
+      #     fi
 
-    #     cd /home/ec2-user/customer-app || { echo "Failed to cd into customer-app"; exit 1; }
-    #     ls -l
+      #     cd /home/ec2-user/customer-app || { echo "Failed to cd into customer-app"; exit 1; }
+      #     ls -l
 
-    #     pip install --upgrade pip
-    #     pip install -r requirements.txt || { echo "Failed to install requirements"; exit 1; }
+      #     pip install --upgrade pip
+      #     pip install -r requirements.txt || { echo "Failed to install requirements"; exit 1; }
 
-    #     cat > /home/ec2-user/customer-app/.env << ENV_EOF
-    #     DB_HOST=${{ secrets.DB_HOST }}
-    #     DB_USER=${{ secrets.DB_USERNAME }}
-    #     DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-    #     DB_NAME=${{ secrets.DB_NAME }}
-    #     DB_PORT=3306
-    #     ENV_EOF
+      #     cat > /home/ec2-user/customer-app/.env << ENV_EOF
+      #     DB_HOST=${{ secrets.DB_HOST }}
+      #     DB_USER=${{ secrets.DB_USERNAME }}
+      #     DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+      #     DB_NAME=${{ secrets.DB_NAME }}
+      #     DB_PORT=3306
+      #     ENV_EOF
 
-    #     chmod 600 /home/ec2-user/customer-app/.env
+      #     chmod 600 /home/ec2-user/customer-app/.env
 
-    #     pkill -f "uvicorn backend:app" || true
+      #     pkill -f "uvicorn backend:app" || true
 
-    #     nohup /home/ec2-user/venv/bin/uvicorn backend:app --app-dir /home/ec2-user/customer-app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
-    #     EOF
+      #     nohup /home/ec2-user/venv/bin/uvicorn backend:app --app-dir /home/ec2-user/customer-app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
+      #     EOF
 
-    - name: Install FastAPI & Start App
-      run: |
-        # Set strict permissions for the key file
-        chmod 400 ${{ steps.create_keypair.outputs.key_file }}
-        
-        # SSH into EC2 and deploy
-        ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
-        set -e
-        exec > >(tee /home/ec2-user/deploy.log) 2>&1  # Log all output
+      - name: Install FastAPI & Start App
+        run: |
+          # Set strict permissions for the key file
+          chmod 400 ${{ steps.create_keypair.outputs.key_file }}
+          
+          # SSH into EC2 and deploy
+          ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+          set -e
+          exec > >(tee /home/ec2-user/deploy.log) 2>&1  # Log all output
 
-        echo "Starting deployment..."
-        
-        # Update and install dependencies
-        sudo yum update -y
-        sudo yum install -y git python3 python3-venv
-        
-        # Create or update virtual environment
-        python3 -m venv /home/ec2-user/venv || echo "venv already exists"
-        source /home/ec2-user/venv/bin/activate
-        
-        # Clone or update repository
-        if [ ! -d "/home/ec2-user/customer-app" ]; then
-          git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
-        else
+          echo "Starting deployment..."
+          
+          # Update and install dependencies
+          sudo yum update -y
+          sudo yum install -y git python3 python3-venv
+          
+          # Create or update virtual environment
+          python3 -m venv /home/ec2-user/venv || echo "venv already exists"
+          source /home/ec2-user/venv/bin/activate
+          
+          # Clone or update repository
+          if [ ! -d "/home/ec2-user/customer-app" ]; then
+            git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
+          else
+            cd /home/ec2-user/customer-app
+            git pull
+          fi
+          
+          # Install Python dependencies
           cd /home/ec2-user/customer-app
-          git pull
-        fi
-        
-        # Install Python dependencies
-        cd /home/ec2-user/customer-app
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        
-        # Create environment file
-        cat > /home/ec2-user/customer-app/.env << 'ENV_EOF'
-        DB_HOST=${{ secrets.DB_HOST }}
-        DB_USER=${{ secrets.DB_USERNAME }}
-        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-        DB_NAME=${{ secrets.DB_NAME }}
-        DB_PORT=3306
-        ENV_EOF
-        
-        chmod 600 /home/ec2-user/customer-app/.env
-        
-        # Stop existing application if running
-        if pgrep -f "uvicorn backend:app"; then
-          pkill -f "uvicorn backend:app"
-          sleep 2  # Give it time to shut down
-        fi
-        
-        # Start new application instance
-        nohup /home/ec2-user/venv/bin/uvicorn backend:app \
-          --app-dir /home/ec2-user/customer-app \
-          --host 0.0.0.0 \
-          --port 8000 \
-          > /home/ec2-user/uvicorn.log 2>&1 &
-        
-        echo "Deployment completed successfully"
-        EOF
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          
+          # Create environment file
+          cat > /home/ec2-user/customer-app/.env << 'ENV_EOF'
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_USER=${{ secrets.DB_USERNAME }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_PORT=3306
+          ENV_EOF
+          
+          chmod 600 /home/ec2-user/customer-app/.env
+          
+          # Stop existing application if running
+          if pgrep -f "uvicorn backend:app"; then
+            pkill -f "uvicorn backend:app"
+            sleep 2  # Give it time to shut down
+          fi
+          
+          # Start new application instance
+          nohup /home/ec2-user/venv/bin/uvicorn backend:app \
+            --app-dir /home/ec2-user/customer-app \
+            --host 0.0.0.0 \
+            --port 8000 \
+            > /home/ec2-user/uvicorn.log 2>&1 &
+          
+          echo "Deployment completed successfully"
+          EOF
 
 
 
-    - name: Show Public URL
-      run: |
-        echo "✅ Your FastAPI app is deployed and running!"
-        echo "🌐 Open the app here: http://${{ env.EC2_PUBLIC_IP }}:8000"
+      - name: Show Public URL
+        run: |
+          echo "✅ Your FastAPI app is deployed and running!"
+          echo "🌐 Open the app here: http://${{ env.EC2_PUBLIC_IP }}:8000"
