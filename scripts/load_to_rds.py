@@ -199,7 +199,7 @@ class RDSConnectionManager:
                 "port": int(os.getenv("DB_PORT", "3306")),
                 "db_name": os.getenv("DB_NAME"),
                 "username": os.getenv("DB_USERNAME"),
-                "secret_name": os.getenv("RDS_PASSWORD_SECRET_NAME"),
+                "secret_name": os.getenv("RDS_PASSWORD_SECRET_NAME")
                 #"ssl_ca": os.getenv("RDS_SSL_CA_PATH", "/etc/ssl/certs/ca-certificates.crt")
             }
             
@@ -231,7 +231,7 @@ class RDSConnectionManager:
             f"@{config['host']}:{config['port']}/{config['db_name']}"
             "?charset=utf8mb4"
             "&connect_timeout=10"
-            "&ssl_ca={config['ssl_ca']}"
+            #"&ssl_ca={config['ssl_ca']}"
         )
         
         for attempt in range(self.max_retries):
@@ -243,6 +243,7 @@ class RDSConnectionManager:
                     pool_size=5,
                     max_overflow=10,
                     echo=False
+                    connect_args={"ssl": {"ssl_disabled": True}}
                 )
                 
                 # Test connection
