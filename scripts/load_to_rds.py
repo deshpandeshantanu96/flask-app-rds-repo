@@ -200,7 +200,7 @@ class RDSConnectionManager:
                 "db_name": os.getenv("DB_NAME"),
                 "username": os.getenv("DB_USERNAME"),
                 "secret_name": os.getenv("RDS_PASSWORD_SECRET_NAME"),
-                "ssl_ca": os.getenv("RDS_SSL_CA_PATH", "/etc/ssl/certs/ca-certificates.crt")
+                #"ssl_ca": os.getenv("RDS_SSL_CA_PATH", "/etc/ssl/certs/ca-certificates.crt")
             }
             
             # Validate required fields
