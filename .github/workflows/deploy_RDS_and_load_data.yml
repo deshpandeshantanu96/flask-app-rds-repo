@@ -65,14 +65,16 @@ jobs:
         run: |
           terraform plan \
             -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="db_password=${{ env.DB_PASSWORD }}"
+            -var="db_password=${{ env.DB_PASSWORD }}"\
+            -var-file="rds.tfvars"
         working-directory: ./terraform
 
       - name: Terraform Apply
         run: |
           terraform apply -auto-approve \
             -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="db_password=${{ env.DB_PASSWORD }}"
+            -var="db_password=${{ env.DB_PASSWORD }}"\
+            -var-file="rds.tfvars"
         working-directory: ./terraform
 
       - name: Save Terraform output to JSON
@@ -194,4 +196,4 @@ jobs:
         run: python scripts/load_to_rds.py
 
 
-        #Code:4
+        #Code:5
