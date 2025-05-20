@@ -26,13 +26,13 @@
         {% for user in users %}
         <tr>
             <td>{{ user.Index }}</td>
-            <td>{{ user.customer_id }}</td>
-            <td>{{ user.first_name }}</td>
-            <td>{{ user.last_name }}</td>
-            <td>{{ user.comapny }}</td>
-            <td>{{ user.city }}</td>
-            <td>{{ user.country }}</td>
-            <td><a href="/user/{{ user.customer_id }}">View/Edit</a></td>
+            <td>{{ user['Customer Id'] }}</td>
+            <td>{{ user['First Name'] }}</td>
+            <td>{{ user['Last Name'] }}</td>
+            <td>{{ user.Company }}</td>
+            <td>{{ user.City }}</td>
+            <td>{{ user.Country }}</td>
+            <td><a href="/user/{{ user.Index }}">View/Edit</a></td>
         </tr>
         {% endfor %}
     </table>

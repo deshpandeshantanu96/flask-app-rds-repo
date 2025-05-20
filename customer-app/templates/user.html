@@ -5,22 +5,26 @@
 </head>
 <body>
     <h2>User Profile</h2>
-    <p><strong>Customer ID:</strong> {{ user.customer_id }}</p>
-    <p><strong>Name:</strong> {{ user.first_name }} {{ user.last_name }}</p>
-    <p><strong>Company:</strong> {{ user.company }}</p>
-    <p><strong>City:</strong> {{ user.city }}</p>
-    <p><strong>Country:</strong> {{ user.country }}</p>
 
-    <form method="post" action="/user/{{ user.customer_id }}/update">
-        <label>First Name: <input type="text" name="first_name" value="{{ user.first_name }}"></label><br>
-        <label>Last Name: <input type="text" name="last_name" value="{{ user.last_name }}"></label><br>
-        <!-- <label>Company: <input type="text" name="company" value="{{ user.company }}"></label><br>
-        <label>City: <input type="text" name="city" value="{{ user.city }}"></label><br>
-        <label>Country: <input type="text" name="country" value="{{ user.country }}"></label><br> -->
+    <p><strong>Customer ID:</strong> {{ user['Customer Id'] }}</p>
+    <p><strong>Name:</strong> {{ user['First Name'] }} {{ user['Last Name'] }}</p>
+    <p><strong>Company:</strong> {{ user['Company'] }}</p>
+    <p><strong>City:</strong> {{ user['City'] }}</p>
+    <p><strong>Country:</strong> {{ user['Country'] }}</p>
+
+    <form method="post" action="/user/{{ user['Index'] }}/update">
+        <label>First Name: <input type="text" name="first_name" value="{{ user['First Name'] }}"></label><br>
+        <label>Last Name: <input type="text" name="last_name" value="{{ user['Last Name'] }}"></label><br>
+        <!-- Optionally add editable fields for other columns -->
+        <!--
+        <label>Company: <input type="text" name="company" value="{{ user['Company'] }}"></label><br>
+        <label>City: <input type="text" name="city" value="{{ user['City'] }}"></label><br>
+        <label>Country: <input type="text" name="country" value="{{ user['Country'] }}"></label><br>
+        -->
         <button type="submit">Update</button>
     </form>
 
-    <form method="post" action="/user/{{ user.customer_id }}/delete" style="margin-top: 20px;">
+    <form method="post" action="/user/{{ user['Index'] }}/delete" style="margin-top: 20px;">
         <button type="submit">Delete</button>
     </form>
 
