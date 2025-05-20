@@ -13,8 +13,10 @@ logger = logging.getLogger(__name__)
 
 def get_secret(secret_name, region_name="us-east-1"):
     """
+    """
     Fetch secret value from AWS Secrets Manager.
     Returns the secret string or dict.
+    """
     """
     session = boto3.session.Session()
     client = session.client(service_name='secretsmanager', region_name=region_name)
@@ -36,7 +38,7 @@ def get_secret(secret_name, region_name="us-east-1"):
         return get_secret_value_response.get('SecretBinary')
 
 def get_rds_config():
-    """Get RDS configuration with robust error handling"""
+    Get RDS configuration with robust error handling
     try:
         # Get port with proper conversion
         port_str = os.getenv("DB_PORT", "3306")
@@ -80,7 +82,7 @@ def get_rds_config():
         raise
 
 def create_db_engine(config):
-    """Create SQLAlchemy engine with proper connection testing"""
+
     try:
         connection_string = (
             f"mysql+pymysql://{config['username']}:{config['password']}"
