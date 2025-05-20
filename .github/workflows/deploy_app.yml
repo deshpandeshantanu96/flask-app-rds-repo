@@ -90,45 +90,105 @@ jobs:
     - name: Wait for SSH to Become Available
       run: sleep 60
 
+    # - name: Install FastAPI & Start App
+    #   run: |
+    #     chmod 400 ${{ steps.create_keypair.outputs.key_file }}
+        
+    #     ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
+    #     set -e
+
+    #     sudo yum update -y
+    #     sudo yum install -y git python3 python3-venv
+
+    #     python3 -m venv /home/ec2-user/venv
+    #     source /home/ec2-user/venv/bin/activate
+
+    #     if [ ! -d "/home/ec2-user/customer-app" ]; then
+    #       git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
+    #     else
+    #       cd /home/ec2-user/customer-app
+    #       git pull
+    #     fi
+
+    #     cd /home/ec2-user/customer-app || { echo "Failed to cd into customer-app"; exit 1; }
+    #     ls -l
+
+    #     pip install --upgrade pip
+    #     pip install -r requirements.txt || { echo "Failed to install requirements"; exit 1; }
+
+    #     cat > /home/ec2-user/customer-app/.env << ENV_EOF
+    #     DB_HOST=${{ secrets.DB_HOST }}
+    #     DB_USER=${{ secrets.DB_USERNAME }}
+    #     DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+    #     DB_NAME=${{ secrets.DB_NAME }}
+    #     DB_PORT=3306
+    #     ENV_EOF
+
+    #     chmod 600 /home/ec2-user/customer-app/.env
+
+    #     pkill -f "uvicorn backend:app" || true
+
+    #     nohup /home/ec2-user/venv/bin/uvicorn backend:app --app-dir /home/ec2-user/customer-app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
+    #     EOF
+
     - name: Install FastAPI & Start App
       run: |
+        # Set strict permissions for the key file
         chmod 400 ${{ steps.create_keypair.outputs.key_file }}
         
-        ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
+        # SSH into EC2 and deploy
+        ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
         set -e
+        exec > >(tee /home/ec2-user/deploy.log) 2>&1  # Log all output
 
+        echo "Starting deployment..."
+        
+        # Update and install dependencies
         sudo yum update -y
         sudo yum install -y git python3 python3-venv
-
-        python3 -m venv /home/ec2-user/venv
+        
+        # Create or update virtual environment
+        python3 -m venv /home/ec2-user/venv || echo "venv already exists"
         source /home/ec2-user/venv/bin/activate
-
+        
+        # Clone or update repository
         if [ ! -d "/home/ec2-user/customer-app" ]; then
           git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
         else
           cd /home/ec2-user/customer-app
           git pull
         fi
-
-        cd /home/ec2-user/customer-app || { echo "Failed to cd into customer-app"; exit 1; }
-        ls -l
-
+        
+        # Install Python dependencies
+        cd /home/ec2-user/customer-app
         pip install --upgrade pip
-        pip install -r requirements.txt || { echo "Failed to install requirements"; exit 1; }
-
-        cat > /home/ec2-user/customer-app/.env << ENV_EOF
+        pip install -r requirements.txt
+        
+        # Create environment file
+        cat > /home/ec2-user/customer-app/.env << 'ENV_EOF'
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USER=${{ secrets.DB_USERNAME }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
         DB_NAME=${{ secrets.DB_NAME }}
         DB_PORT=3306
         ENV_EOF
-
+        
         chmod 600 /home/ec2-user/customer-app/.env
-
-        pkill -f "uvicorn backend:app" || true
-
-        nohup /home/ec2-user/venv/bin/uvicorn backend:app --app-dir /home/ec2-user/customer-app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
+        
+        # Stop existing application if running
+        if pgrep -f "uvicorn backend:app"; then
+          pkill -f "uvicorn backend:app"
+          sleep 2  # Give it time to shut down
+        fi
+        
+        # Start new application instance
+        nohup /home/ec2-user/venv/bin/uvicorn backend:app \
+          --app-dir /home/ec2-user/customer-app \
+          --host 0.0.0.0 \
+          --port 8000 \
+          > /home/ec2-user/uvicorn.log 2>&1 &
+        
+        echo "Deployment completed successfully"
         EOF
 
 
