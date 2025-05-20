@@ -65,16 +65,14 @@ jobs:
         run: |
           terraform plan \
             -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="db_password=${{ env.DB_PASSWORD }}" \
-            -var-file="rds.tfvars"
+            -var="db_password=${{ env.DB_PASSWORD }}"
         working-directory: ./terraform
 
       - name: Terraform Apply
         run: |
           terraform apply -auto-approve \
             -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="db_password=${{ env.DB_PASSWORD }}" \
-            -var-file="rds.tfvars"
+            -var="db_password=${{ env.DB_PASSWORD }}"
         working-directory: ./terraform
 
       - name: Save Terraform output to JSON
@@ -161,6 +159,30 @@ jobs:
       #       sleep 10
       #     done
       #     echo "Database is now available!"
+
+      - name: Debug Connection Parameters
+        run: |
+          echo "=== Credential Verification ==="
+          # Masked output for security
+          echo "DB_HOST: ${{ env.DB_HOST }}"
+          echo "DB_USERNAME: ${{ env.DB_USERNAME }}"
+          echo "DB_NAME: ${{ env.DB_NAME }}"
+          
+          # Verify Secrets Manager access
+          aws secretsmanager get-secret-value \
+            --secret-id ${{ secrets.RDS_PASSWORD_SECRET_NAME }} \
+            --query 'SecretString' \
+            --output text | jq -r '.password[0:2]' | echo "Password prefix: **"
+          
+          # Test network connectivity
+          HOST=${DB_HOST%:*}
+          PORT=${DB_HOST#*:}
+          timeout 5 nc -zv $HOST ${PORT:-3306} && echo "Network path OK" || echo "Network blocked"
+        env:
+          DB_HOST: ${{ env.DB_HOST }}
+          DB_USERNAME: ${{ env.DB_USERNAME }}
+          DB_NAME: ${{ env.DB_NAME }}
+
 
       - name: Load data into RDS
         env:

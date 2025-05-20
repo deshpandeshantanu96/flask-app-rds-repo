@@ -152,6 +152,9 @@ import boto3
 import json
 import time
 from urllib.parse import quote_plus
+from dotenv import load_dotenv
+load_dotenv()  # This loads .env values into os.environ
+
 
 # Configure logging
 logging.basicConfig(
@@ -199,7 +202,8 @@ class RDSConnectionManager:
                 "port": int(os.getenv("DB_PORT", "3306")),
                 "db_name": os.getenv("DB_NAME"),
                 "username": os.getenv("DB_USERNAME"),
-                "secret_name": os.getenv("RDS_PASSWORD_SECRET_NAME")
+                #"secret_name": os.getenv("RDS_PASSWORD_SECRET_NAME")
+                "password": os.getenv("DB_PASSWORD")
                 #"ssl_ca": os.getenv("RDS_SSL_CA_PATH", "/etc/ssl/certs/ca-certificates.crt")
             }
             
@@ -209,11 +213,11 @@ class RDSConnectionManager:
                 raise ValueError(f"Missing required config: {missing}")
             
             # Get password from Secrets Manager
-            secret = self.get_secret(config["secret_name"])
-            config["password"] = secret.get("password") if isinstance(secret, dict) else secret
+            # secret = self.get_secret(config["secret_name"])
+            # config["password"] = secret.get("password") if isinstance(secret, dict) else secret
             
-            if not config["password"]:
-                raise ValueError("No password found in secret")
+            # if not config["password"]:
+            #     raise ValueError("No password found in secret")
                 
             return config
             

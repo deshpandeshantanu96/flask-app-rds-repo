@@ -95,7 +95,7 @@ resource "aws_db_instance" "rds_instance" {
   engine                 = "mysql"
   engine_version         = "8.0"
   username               = "admin"
-  password               = random_password.db.result
+  password               = var.db_password
   db_name                = "mydatabase"
   publicly_accessible    = true
   storage_type           = "gp2"
