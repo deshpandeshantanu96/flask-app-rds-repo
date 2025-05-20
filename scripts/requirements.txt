@@ -3,4 +3,3 @@ sqlalchemy
 boto3
 python-terraform
 pymysql
-urllib.parse
