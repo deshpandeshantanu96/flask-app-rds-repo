@@ -242,7 +242,7 @@ class RDSConnectionManager:
                     pool_recycle=3600,
                     pool_size=5,
                     max_overflow=10,
-                    echo=False
+                    echo=False,
                     connect_args={"ssl": {"ssl_disabled": True}}
                 )
                 
