@@ -12,12 +12,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def get_secret(secret_name, region_name="us-east-1"):
-    """
-    """
-    Fetch secret value from AWS Secrets Manager.
-    Returns the secret string or dict.
-    """
-    """
+
     session = boto3.session.Session()
     client = session.client(service_name='secretsmanager', region_name=region_name)
 
