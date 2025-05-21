@@ -164,14 +164,18 @@
           
           # System updates and dependencies
           sudo yum update -y
-          sudo yum install -y git python3 python3-venv nginx mysql
+          
+          # Enable EPEL and install Nginx (Amazon Linux specific)
+          sudo amazon-linux-extras enable epel
+          sudo yum install -y epel-release
+          sudo yum install -y git python3 python3-venv nginx mysql mysql-devel
 
           # Python environment setup
           python3 -m venv /home/ec2-user/venv || echo "venv exists"
           source /home/ec2-user/venv/bin/activate
 
-          # Install MySQL client libraries
-          sudo yum install -y mysql-devel
+          # Install Python dependencies
+          pip install --upgrade pip
           pip install mysql-connector-python
 
           # Application setup
@@ -182,7 +186,6 @@
           fi
 
           cd /home/ec2-user/app
-          pip install --upgrade pip
           pip install -r requirements.txt
 
           # Create environment file with DB credentials
@@ -228,8 +231,6 @@
           echo "=== Deployment Complete ==="
           echo "Access your app at: http://${{ env.EC2_PUBLIC_IP }}"
           EOF
-
-
 
       - name: Show Public URL
         run: |
