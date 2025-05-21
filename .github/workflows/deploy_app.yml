@@ -21,37 +21,37 @@
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Create a unique EC2 key pair
-        id: create_keypair
-        run: |
-          set -eo pipefail  # Fail on any error in the pipeline
-          KEY_NAME="fastapi-key-$(date +%s)"
-          KEY_FILE="${KEY_NAME}.pem"
+      # - name: Create a unique EC2 key pair
+      #   id: create_keypair
+      #   run: |
+      #     set -eo pipefail  # Fail on any error in the pipeline
+      #     KEY_NAME="fastapi-key-$(date +%s)"
+      #     KEY_FILE="${KEY_NAME}.pem"
 
-          echo "Creating key pair: $KEY_NAME..."
-          KEY_MATERIAL=$(aws ec2 create-key-pair \
-            --key-name "$KEY_NAME" \
-            --query 'KeyMaterial' \
-            --output text \
-            --region ${{ env.AWS_REGION }}  # Explicitly use the region
-          )
+      #     echo "Creating key pair: $KEY_NAME..."
+      #     KEY_MATERIAL=$(aws ec2 create-key-pair \
+      #       --key-name "$KEY_NAME" \
+      #       --query 'KeyMaterial' \
+      #       --output text \
+      #       --region ${{ env.AWS_REGION }}  # Explicitly use the region
+      #     )
 
-          # Write key material to file atomically
-          echo "$KEY_MATERIAL" > "$KEY_FILE.tmp"
-          mv "$KEY_FILE.tmp" "$KEY_FILE"  # Atomic rename to avoid partial writes
-          chmod 400 "$KEY_FILE"
+      #     # Write key material to file atomically
+      #     echo "$KEY_MATERIAL" > "$KEY_FILE.tmp"
+      #     mv "$KEY_FILE.tmp" "$KEY_FILE"  # Atomic rename to avoid partial writes
+      #     chmod 400 "$KEY_FILE"
 
-          # Verify the key was written
-          if [ ! -s "$KEY_FILE" ]; then
-            echo "❌ Error: Key file is empty!"
-            exit 1
-          fi
+      #     # Verify the key was written
+      #     if [ ! -s "$KEY_FILE" ]; then
+      #       echo "❌ Error: Key file is empty!"
+      #       exit 1
+      #     fi
 
-          # Set outputs for later steps
-          echo "key_name=$KEY_NAME" >> $GITHUB_OUTPUT
-          echo "key_file=$KEY_FILE" >> $GITHUB_OUTPUT
+      #     # Set outputs for later steps
+      #     echo "key_name=$KEY_NAME" >> $GITHUB_OUTPUT
+      #     echo "key_file=$KEY_FILE" >> $GITHUB_OUTPUT
 
-          echo "✅ Key pair created: $KEY_NAME ($KEY_FILE)"
+      #     echo "✅ Key pair created: $KEY_NAME ($KEY_FILE)"
 
       - name: Lookup VPC/Subnet/SG dynamically
         run: |
