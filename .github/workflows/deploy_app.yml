@@ -189,7 +189,7 @@ jobs:
         sleep 2
 
         # Start Uvicorn (bound to localhost only)
-        cd /home/ec2-user/customer-app
+        cd /home/ec2-user/customer-app/customer-app
 
         if [ -f "backend.py" ]; then
           nohup /home/ec2-user/venv/bin/uvicorn backend:app \
