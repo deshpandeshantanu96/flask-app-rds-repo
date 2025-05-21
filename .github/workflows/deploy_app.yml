@@ -196,7 +196,7 @@
 
       - name: Install Dependencies & Configure Nginx
         run: |
-          chmod 400 ${{ steps.create_keypair.outputs.key_file }}
+          chmod 400 "${{ steps.create_keypair.outputs.key_file }}""
           
           ssh -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
