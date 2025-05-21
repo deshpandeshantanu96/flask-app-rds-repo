@@ -53,6 +53,31 @@
 
       #     echo "✅ Key pair created: $KEY_NAME ($KEY_FILE)"
 
+      - name: Create and store EC2 key pair
+        id: create_keypair
+        run: |
+          set -eo pipefail
+          KEY_NAME="fastapi-key-$(date +%s)"
+          
+          # Create key pair and store in SSM immediately
+          KEY_MATERIAL=$(aws ec2 create-key-pair \
+            --key-name "$KEY_NAME" \
+            --query 'KeyMaterial' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          # Store in SSM Parameter Store (secure string)
+          aws ssm put-parameter \
+            --name "/ec2-keys/$KEY_NAME" \
+            --value "$KEY_MATERIAL" \
+            --type "SecureString" \
+            --region ${{ env.AWS_REGION }}
+          
+          # Set outputs for later steps
+          echo "key_name=$KEY_NAME" >> $GITHUB_OUTPUT
+          echo "key_ssm_path=/ec2-keys/$KEY_NAME" >> $GITHUB_OUTPUT
+          echo "✅ Key pair created and stored in SSM: $KEY_NAME"
+
       - name: Lookup VPC/Subnet/SG dynamically
         run: |
           VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
@@ -148,30 +173,7 @@
       #     EOF
 
       # 
-      - name: Create and store EC2 key pair
-        id: create_keypair
-        run: |
-          set -eo pipefail
-          KEY_NAME="fastapi-key-$(date +%s)"
-          
-          # Create key pair and store in SSM immediately
-          KEY_MATERIAL=$(aws ec2 create-key-pair \
-            --key-name "$KEY_NAME" \
-            --query 'KeyMaterial' \
-            --output text \
-            --region ${{ env.AWS_REGION }})
-          
-          # Store in SSM Parameter Store (secure string)
-          aws ssm put-parameter \
-            --name "/ec2-keys/$KEY_NAME" \
-            --value "$KEY_MATERIAL" \
-            --type "SecureString" \
-            --region ${{ env.AWS_REGION }}
-          
-          # Set outputs for later steps
-          echo "key_name=$KEY_NAME" >> $GITHUB_OUTPUT
-          echo "key_ssm_path=/ec2-keys/$KEY_NAME" >> $GITHUB_OUTPUT
-          echo "✅ Key pair created and stored in SSM: $KEY_NAME"
+      
 
       - name: Retrieve key from SSM for SSH
         id: get_key
