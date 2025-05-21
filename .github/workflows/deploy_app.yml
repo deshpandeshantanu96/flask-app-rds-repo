@@ -146,17 +146,17 @@ jobs:
         pip install mysql-connector-python
 
         # Application setup
-        if [ ! -d "/home/ec2-user/app" ]; then
-          git clone https://github.com/${{ github.repository }} /home/ec2-user/app
+        if [ ! -d "/home/ec2-user/customer-app" ]; then
+          git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
         else
-          cd /home/ec2-user/app && git pull
+          cd /home/ec2-user/customer-app && git pull
         fi
 
-        cd /home/ec2-user/app
+        cd /home/ec2-user/customer-app
         pip install -r requirements.txt
 
         # Create environment file with DB credentials
-        cat > /home/ec2-user/app/.env << 'ENV_EOF'
+        cat > /home/ec2-user/customer-app/.env << 'ENV_EOF'
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USERNAME=${{ secrets.DB_USERNAME }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
@@ -189,11 +189,20 @@ jobs:
         sleep 2
 
         # Start Uvicorn (bound to localhost only)
-        nohup /home/ec2-user/venv/bin/uvicorn backend:app \
-          --app-dir /home/ec2-user/app \
-          --host 127.0.0.1 \
-          --port 8000 \
-          > /home/ec2-user/uvicorn.log 2>&1 &
+        cd /home/ec2-user/customer-app
+
+        if [ -f "backend.py" ]; then
+          nohup /home/ec2-user/venv/bin/uvicorn backend:app \
+            --host 127.0.0.1 \
+            --port 8000 \
+            > /home/ec2-user/uvicorn.log 2>&1 &
+        else
+          echo "❌ backend.py not found in /home/ec2-user/customer-app"
+          exit 1
+        fi
+
+        echo "Checking Uvicorn log:"
+        tail -n 20 /home/ec2-user/uvicorn.log
 
         echo "=== Deployment Complete ==="
         echo "Access your app at: http://${{ env.EC2_PUBLIC_IP }}"
