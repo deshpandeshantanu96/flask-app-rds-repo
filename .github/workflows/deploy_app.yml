@@ -147,64 +147,70 @@
       #     nohup /home/ec2-user/venv/bin/uvicorn backend:app --app-dir /home/ec2-user/customer-app --host 0.0.0.0 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
       #     EOF
 
-      - name: Install FastAPI & Start App
+      # 
+      
+
+      - name: Install FastAPI & Configure Nginx
         run: |
-          # Set strict permissions for the key file
           chmod 400 ${{ steps.create_keypair.outputs.key_file }}
           
-          # SSH into EC2 and deploy
           ssh -o StrictHostKeyChecking=no -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
           set -e
-          exec > >(tee /home/ec2-user/deploy.log) 2>&1  # Log all output
+          exec > >(tee /home/ec2-user/deploy.log) 2>&1
 
-          echo "Starting deployment..."
+          echo "=== Starting Deployment ==="
           
-          # Update and install dependencies
+          # System updates and dependencies
           sudo yum update -y
-          sudo yum install -y git python3 python3-venv
-          
-          # Create or update virtual environment
-          python3 -m venv /home/ec2-user/venv || echo "venv already exists"
+          sudo yum install -y git python3 python3-venv nginx
+
+          # Python environment setup
+          python3 -m venv /home/ec2-user/venv || echo "venv exists"
           source /home/ec2-user/venv/bin/activate
-          
-          # Clone or update repository
-          if [ ! -d "/home/ec2-user/customer-app" ]; then
-            git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
+
+          # Application setup
+          if [ ! -d "/home/ec2-user/app" ]; then
+            git clone https://github.com/${{ github.repository }} /home/ec2-user/app
           else
-            cd /home/ec2-user/customer-app
-            git pull
+            cd /home/ec2-user/app && git pull
           fi
-          
-          # Install Python dependencies
-          cd /home/ec2-user/customer-app
+
+          cd /home/ec2-user/app
           pip install --upgrade pip
           pip install -r requirements.txt
-          
-          # Create environment file
-          cat > /home/ec2-user/customer-app/.env << 'ENV_EOF'
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_USER=${{ secrets.DB_USERNAME }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_PORT=3306
-          ENV_EOF
-          
-          chmod 600 /home/ec2-user/customer-app/.env
-          
-          # Stop existing application if running
-          if pgrep -f "uvicorn backend:app"; then
-            pkill -f "uvicorn backend:app"
-            sleep 2  # Give it time to shut down
-          fi
-          
-          # Start new application instance
+
+          # Configure Nginx
+          sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
+          server {
+              listen 80;
+              server_name _;
+              
+              location / {
+                  proxy_pass http://127.0.0.1:8000;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              }
+          }
+          NGINX_EOF
+
+          # Start services
+          sudo systemctl enable nginx
+          sudo systemctl restart nginx
+
+          # Stop existing Uvicorn if running
+          pkill -f "uvicorn backend:app" || true
+          sleep 2
+
+          # Start Uvicorn (bound to localhost only)
           nohup /home/ec2-user/venv/bin/uvicorn backend:app \
-            --app-dir /home/ec2-user/customer-app \
-            --host 0.0.0.0 \
+            --app-dir /home/ec2-user/app \
+            --host 127.0.0.1 \
             --port 8000 \
             > /home/ec2-user/uvicorn.log 2>&1 &
-          
-          echo "Deployment completed successfully"
+
+          echo "=== Deployment Complete ==="
+          echo "Access your app at: http://${{ env.EC2_PUBLIC_IP }}"
           EOF
 
 
