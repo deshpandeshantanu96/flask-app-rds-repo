@@ -148,6 +148,49 @@
       #     EOF
 
       # 
+      - name: Create and store EC2 key pair
+        id: create_keypair
+        run: |
+          set -eo pipefail
+          KEY_NAME="fastapi-key-$(date +%s)"
+          
+          # Create key pair and store in SSM immediately
+          KEY_MATERIAL=$(aws ec2 create-key-pair \
+            --key-name "$KEY_NAME" \
+            --query 'KeyMaterial' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          # Store in SSM Parameter Store (secure string)
+          aws ssm put-parameter \
+            --name "/ec2-keys/$KEY_NAME" \
+            --value "$KEY_MATERIAL" \
+            --type "SecureString" \
+            --region ${{ env.AWS_REGION }}
+          
+          # Set outputs for later steps
+          echo "key_name=$KEY_NAME" >> $GITHUB_OUTPUT
+          echo "key_ssm_path=/ec2-keys/$KEY_NAME" >> $GITHUB_OUTPUT
+          echo "✅ Key pair created and stored in SSM: $KEY_NAME"
+
+      - name: Retrieve key from SSM for SSH
+        id: get_key
+        run: |
+          # Retrieve from SSM
+          KEY_MATERIAL=$(aws ssm get-parameter \
+            --name "${{ steps.create_keypair.outputs.key_ssm_path }}" \
+            --with-decryption \
+            --query Parameter.Value \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          # Write to file
+          KEY_FILE="key.pem"
+          echo "$KEY_MATERIAL" > "$KEY_FILE"
+          chmod 400 "$KEY_FILE"
+          echo "key_file=$KEY_FILE" >> $GITHUB_OUTPUT
+          echo "✅ Key retrieved from SSM"
+
 
       - name: Install Dependencies & Configure Nginx
         run: |
