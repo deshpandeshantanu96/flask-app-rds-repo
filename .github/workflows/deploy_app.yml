@@ -153,7 +153,10 @@
         run: |
           chmod 400 ${{ steps.create_keypair.outputs.key_file }}
           
-          ssh -i ${{ steps.create_keypair.outputs.key_file }} ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              -i ${{ steps.create_keypair.outputs.key_file }} \
+              ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
           set -e
           exec > >(tee /home/ec2-user/deploy.log) 2>&1
 
