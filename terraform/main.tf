@@ -88,22 +88,46 @@ resource "aws_db_subnet_group" "rds_subnet_group" {
 }
 
 # RDS Instance (Free Tier MySQL)
+#   resource "aws_db_instance" "rds_instance" {
+#   identifier             = "my-rds-instance-${random_id.suffix.hex}"
+#   instance_class         = "db.t3.micro"
+#   allocated_storage      = 20
+#   engine                 = "mysql"
+#   engine_version         = "8.0"
+#   username               = "admin"
+#   password               = var.db_password
+#   db_name                = "mydatabase"
+#   publicly_accessible    = true
+#   storage_type           = "gp2"
+#   backup_retention_period = 0 # Set to 0 for faster deletion in testing
+#   skip_final_snapshot    = true
+#   vpc_security_group_ids = [aws_security_group.rds_sg.id]
+#   db_subnet_group_name   = aws_db_subnet_group.rds_subnet_group.name
+#   tags = {
+#     Name = "MyRDSInstance"
+#   }
+# }
+
 resource "aws_db_instance" "rds_instance" {
-  identifier             = "my-rds-instance-${random_id.suffix.hex}"
-  instance_class         = "db.t3.micro"
-  allocated_storage      = 20
-  engine                 = "mysql"
-  engine_version         = "8.0"
-  username               = "admin"
-  password               = var.db_password
-  db_name                = "mydatabase"
-  publicly_accessible    = true
-  storage_type           = "gp2"
-  backup_retention_period = 0 # Set to 0 for faster deletion in testing
-  skip_final_snapshot    = true
-  vpc_security_group_ids = [aws_security_group.rds_sg.id]
-  db_subnet_group_name   = aws_db_subnet_group.rds_subnet_group.name
+  identifier               = var.db_instance_identifier
+  instance_class           = var.db_instance_class
+  allocated_storage        = var.db_allocated_storage
+  engine                   = var.db_engine
+  engine_version           = var.db_engine_version
+  username                 = var.db_username
+  password                 = var.db_password
+  db_name                  = var.db_name
+  publicly_accessible      = var.db_publicly_accessible
+  storage_type             = var.db_storage_type
+  backup_retention_period  = var.db_backup_retention_period
+  skip_final_snapshot      = var.db_skip_final_snapshot
+  vpc_security_group_ids   = [aws_security_group.rds_sg.id]
+  db_subnet_group_name     = aws_db_subnet_group.rds_subnet_group.name
+
   tags = {
-    Name = "MyRDSInstance"
+    Name = var.db_instance_identifier
   }
 }
+
+
+
