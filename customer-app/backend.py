@@ -95,7 +95,6 @@ from dotenv import load_dotenv
 app = FastAPI()
 
 load_dotenv()  
-cursor = None
 
 # RDS MySQL Configuration
 db_config = {

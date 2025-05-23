@@ -202,8 +202,8 @@ class RDSConnectionManager:
                 "port": int(os.getenv("DB_PORT", "3306")),
                 "db_name": os.getenv("DB_NAME"),
                 "username": os.getenv("DB_USERNAME"),
-                #"secret_name": os.getenv("RDS_PASSWORD_SECRET_NAME")
-                "password": os.getenv("DB_PASSWORD")
+                "secret_name": os.getenv("RDS_PASSWORD_SECRET_NAME")
+                #"password": os.getenv("DB_PASSWORD")
                 #"ssl_ca": os.getenv("RDS_SSL_CA_PATH", "/etc/ssl/certs/ca-certificates.crt")
             }
             
