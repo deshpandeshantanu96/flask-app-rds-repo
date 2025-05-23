@@ -3,3 +3,5 @@ uvicorn[standard]
 mysql-connector-python
 python-dotenv
 jinja2
+python-multipart #added from the debugging done using tail -n 30 /home/ec2-user/uvicorn.log
+
