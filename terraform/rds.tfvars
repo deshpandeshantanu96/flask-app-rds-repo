@@ -11,7 +11,7 @@
 # db_publicly_accessible    = false
 # db_backup_retention_period = 7
 
-vpc_security_group_ids = []
+# vpc_security_group_ids = []
 
 identifier              = "my-rds-instance"
 instance_class          = "db.t3.micro"
@@ -19,7 +19,7 @@ allocated_storage       = 20
 engine                  = "mysql"
 engine_version          = "8.0"
 db_username             = "admin"
-db_password             = "MySecurePassword123!"  # Replace with a strong password
+# db_password             = "MySecurePassword123!"  # Replace with a strong password
 db_name                 = "mydatabase"
 publicly_accessible     = true
 storage_type            = "gp2"
