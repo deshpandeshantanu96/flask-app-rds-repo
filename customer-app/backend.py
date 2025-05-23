@@ -95,6 +95,7 @@ from dotenv import load_dotenv
 app = FastAPI()
 
 load_dotenv()  
+cursor = None
 
 # RDS MySQL Configuration
 db_config = {
@@ -172,6 +173,6 @@ async def delete_user(index: int):
     return RedirectResponse(url="/", status_code=303)
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("backend:app", host="127.0.0.1", port=8000, reload=True)
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run("backend:app", host="127.0.0.1", port=8000, reload=True)
