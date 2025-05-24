@@ -212,12 +212,12 @@ class RDSConnectionManager:
             if missing:
                 raise ValueError(f"Missing required config: {missing}")
             
-            # Get password from Secrets Manager
-            # secret = self.get_secret(config["secret_name"])
-            # config["password"] = secret.get("password") if isinstance(secret, dict) else secret
+            #Get password from Secrets Manager
+            secret = self.get_secret(config["secret_name"])
+            config["password"] = secret.get("password") if isinstance(secret, dict) else secret
             
-            # if not config["password"]:
-            #     raise ValueError("No password found in secret")
+            if not config["password"]:
+                raise ValueError("No password found in secret")
                 
             return config
             

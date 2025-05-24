@@ -1,0 +1,30 @@
+<!-- templates/login.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Login</title>
+    <style>
+        .error { color: red; }
+        .login-form { max-width: 400px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <div class="login-form">
+        <h2>Admin Login</h2>
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+        <form method="post">
+            <div>
+                <label>Username:</label>
+                <input type="text" name="username" required>
+            </div>
+            <div>
+                <label>Password:</label>
+                <input type="password" name="password" required>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+</body>
+</html>
