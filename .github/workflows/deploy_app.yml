@@ -322,71 +322,64 @@ jobs:
         echo "key_file=key.pem" >> $GITHUB_OUTPUT
 
     - name: Install Dependencies & Deploy App
-      env:
-        DB_HOST: ${{ secrets.RDS_HOST }}
-        DB_USER: ${{ secrets.RDS_USERNAME }}
-        DB_PASS: ${{ secrets.RDS_PASSWORD }}
-        DB_NAME: ${{ secrets.RDS_DBNAME }}
       run: |
-        # Verify secrets are available
-        if [ -z "$DB_HOST" ]; then
-          echo "::error::Missing database secrets! Check RDS_HOST, RDS_USERNAME, etc."
-          exit 1
-        fi
-
-        ssh -o StrictHostKeyChecking=no -i key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -i key.pem \
+            ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
         set -ex
-        
-        # Install dependencies
         sudo yum update -y
-        sudo yum install -y git python3 python3-venv mysql nginx
+        sudo yum install -y git python3 python3-venv mysql mysql-devel
+        sudo amazon-linux-extras enable nginx1
+        sudo yum clean metadata
+        sudo yum install -y nginx
 
-        # Setup Python environment
         python3 -m venv ~/venv
         source ~/venv/bin/activate
-        pip install -U pip mysql-connector-python
+        pip install --upgrade pip
+        pip install mysql-connector-python uvicorn
 
-        # Deploy application
         cd /home/ec2-user
-        [ -d "customer-app" ] && cd customer-app && git pull || git clone https://github.com/${{ github.repository }} customer-app
+        git clone https://github.com/${{ github.repository }} customer-app || (cd customer-app && git pull)
         cd customer-app/customer-app
-        
-        # Configure environment
-        cat > .env <<EOT
-        DB_HOST=$DB_HOST
-        DB_USER=$DB_USER
-        DB_PASSWORD=$DB_PASS
-        DB_NAME=$DB_NAME
+
+        pip install -r requirements.txt
+
+        cat <<EOT > /home/ec2-user/customer-app/customer-app/.env
+        DB_HOST=${{ secrets.RDS_HOST }}
+        DB_USERNAME=${{ secrets.RDS_USERNAME }}
+        DB_PASSWORD=${{ secrets.RDS_PASSWORD }}
+        DB_NAME=${{ secrets.RDS_NAME }}
         DB_PORT=3306
         EOT
-        chmod 600 .env
 
-        # Verify database connection
-        if ! mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -e "SELECT 1" "$DB_NAME"; then
-          echo "::error::Failed to connect to database at $DB_HOST"
-          exit 1
-        fi
-
-        # Configure NGINX
-        sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null <<'NGINX'
+        sudo mkdir -p /etc/nginx/conf.d
+        sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
         server {
             listen 80;
             server_name _;
+
             location / {
                 proxy_pass http://127.0.0.1:8000;
                 proxy_set_header Host \$host;
                 proxy_set_header X-Real-IP \$remote_addr;
+                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
             }
         }
-        NGINX
+        NGINX_EOF
 
-        # Restart services
-        sudo nginx -t && sudo systemctl restart nginx
+        sudo nginx -t && sudo systemctl enable --now nginx
+
         pkill -f "uvicorn backend:app" || true
-        nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > uvicorn.log 2>&1 &
+        sleep 2
 
-        echo "✅ Deployment complete: http://${{ env.EC2_PUBLIC_IP }}"
+        source ~/venv/bin/activate
+        cd /home/ec2-user/customer-app/customer-app
+        nohup uvicorn backend:app --host 127.0.0.1 --port 8000 > ~/uvicorn.log 2>&1 &
+
+        echo "App running at: http://${{ env.EC2_PUBLIC_IP }}"
         EOF
+
   
 
     - name: Show Public URL
