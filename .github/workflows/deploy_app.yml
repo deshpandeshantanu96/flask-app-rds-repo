@@ -323,10 +323,10 @@ jobs:
 
     - name: Install Dependencies & Deploy App
       env:
-        DB_HOST: ${{ secrets.DB_HOST }}
-        DB_USER: ${{ secrets.DB_USERNAME }}
-        DB_PASS: ${{ secrets.DB_PASSWORD }}
-        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_HOST: ${{ secrets.RDS_HOST }}
+        DB_USER: ${{ secrets.RDS_USERNAME }}
+        DB_PASS: ${{ secrets.RDS_PASSWORD }}
+        DB_NAME: ${{ secrets.RDS_USERNAME }}
       run: |
         # Debug: Print all environment variables (remove after debugging)
         printenv | grep DB_
