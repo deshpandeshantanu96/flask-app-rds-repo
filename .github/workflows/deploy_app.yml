@@ -329,7 +329,10 @@ jobs:
             ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
         set -e
         sudo yum update -y
-        sudo yum install -y git python3 python3-venv nginx mysql mysql-devel
+        sudo yum install -y git python3 python3-venv mysql mysql-devel
+        sudo amazon-linux-extras enable nginx1
+        sudo yum clean metadata
+        sudo yum install -y nginx
 
         python3 -m venv ~/venv
         source ~/venv/bin/activate
