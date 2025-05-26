@@ -326,7 +326,7 @@ jobs:
         DB_HOST: ${{ secrets.RDS_HOST }}
         DB_USER: ${{ secrets.RDS_USERNAME }}
         DB_PASS: ${{ secrets.RDS_PASSWORD }}
-        DB_NAME: ${{ secrets.RDS_USERNAME }}
+        DB_NAME: ${{ secrets.RDS_DBNAME }}
       run: |
         # Debug: Print all environment variables (remove after debugging)
         printenv | grep DB_
