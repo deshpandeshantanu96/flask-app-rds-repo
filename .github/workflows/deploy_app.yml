@@ -347,10 +347,10 @@ jobs:
 
         # ✅ Proper .env creation with secrets interpolated from GitHub Actions
         cat <<EOT > /home/ec2-user/customer-app/customer-app/.env
-        DB_HOST=${{ secrets.DB_HOST }}
-        DB_USERNAME=${{ secrets.DB_USERNAME }}
-        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-        DB_NAME=${{ secrets.DB_NAME }}
+        DB_HOST=my-rds-instance.cshc0wimskn2.us-east-1.rds.amazonaws.com # ${{ secrets.DB_HOST }}
+        DB_USERNAME=admin #${{ secrets.DB_USERNAME }}
+        DB_PASSWORD=2cd8baefe644dd761b04ae3453a5039b # ${{ secrets.DB_PASSWORD }}
+        DB_NAME=mydatabase # ${{ secrets.DB_NAME }}
         DB_PORT=3306
         EOT
 
