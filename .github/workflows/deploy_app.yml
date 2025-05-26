@@ -321,67 +321,40 @@ jobs:
         chmod 400 key.pem
         echo "key_file=key.pem" >> $GITHUB_OUTPUT
 
-    # - name: Install Dependencies & Deploy App
-    #   run: |
-    #     ssh -o StrictHostKeyChecking=no \
-    #         -o UserKnownHostsFile=/dev/null \
-    #         -i key.pem \
-    #         ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
-    #     set -e
-    #     sudo yum update -y
-    #     sudo yum install -y git python3 python3-venv mysql mysql-devel
-    #     sudo amazon-linux-extras enable nginx1
-    #     sudo yum clean metadata
-    #     sudo yum install -y nginx
-
-    #     python3 -m venv ~/venv
-    #     source ~/venv/bin/activate
-    #     pip install --upgrade pip
-    #     pip install mysql-connector-python
-
-    #     cd /home/ec2-user
-    #     git clone https://github.com/${{ github.repository }} customer-app || (cd customer-app && git pull)
-    #     cd customer-app/customer-app
-
-    #     pip install -r requirements.txt
-
-    #     # ✅ Proper .env creation with secrets interpolated from GitHub Actions
-    #     cat <<EOT > /home/ec2-user/customer-app/customer-app/.env
-    #     DB_HOST=my-rds-instance.cshc0wimskn2.us-east-1.rds.amazonaws.com # ${{ secrets.DB_HOST }}
-    #     DB_USERNAME=admin #${{ secrets.DB_USERNAME }}
-    #     DB_PASSWORD=2cd8baefe644dd761b04ae3453a5039b # ${{ secrets.DB_PASSWORD }}
-    #     DB_NAME=mydatabase # ${{ secrets.DB_NAME }}
-    #     DB_PORT=3306
-    #     EOT
-
-    #         sudo mkdir -p /etc/nginx/conf.d
-    #         sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
-    #     server {
-    #         listen 80;
-    #         server_name _;
-
-    #         location / {
-    #             proxy_pass http://127.0.0.1:8000;
-    #             proxy_set_header Host \$host;
-    #             proxy_set_header X-Real-IP \$remote_addr;
-    #             proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    #         }
-    #     }
-    #     NGINX_EOF
-
-    #     sudo nginx -t && sudo systemctl enable --now nginx
-
-    #     pkill -f "uvicorn backend:app" || true
-    #     sleep 2
-
-    #     cd /home/ec2-user/customer-app/customer-app
-    #     nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
-
-    #     echo "Access app at: http://${{ env.EC2_PUBLIC_IP }}"
-    #     EOF
     - name: Install Dependencies & Deploy App
       run: |
-        echo "Generating .env locally..."
+        ssh -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -i key.pem \
+            ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+        set -e
+        # System updates and package installations
+        sudo yum update -y
+        sudo yum install -y git python3 python3-venv mysql mysql-devel
+        sudo amazon-linux-extras enable nginx1
+        sudo yum clean metadata
+        sudo yum install -y nginx
+
+        # Python environment setup
+        python3 -m venv ~/venv
+        source ~/venv/bin/activate
+        pip install --upgrade pip
+        pip install mysql-connector-python
+
+        # Application setup
+        cd /home/ec2-user
+        if [ -d "customer-app" ]; then
+            cd customer-app
+            git pull
+            cd ..
+        else
+            git clone https://github.com/${{ github.repository }} customer-app
+        fi
+        cd customer-app/customer-app
+
+        pip install -r requirements.txt
+
+        # Secure .env file creation with proper permissions
         cat <<EOT > .env
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USERNAME=${{ secrets.DB_USERNAME }}
@@ -389,33 +362,9 @@ jobs:
         DB_NAME=${{ secrets.DB_NAME }}
         DB_PORT=3306
         EOT
+        chmod 600 .env  # Restrict permissions on the .env file
 
-            echo "Creating remote directory before upload..."
-            ssh -o StrictHostKeyChecking=no -i key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} "mkdir -p /home/ec2-user/customer-app/customer-app"
-
-            echo "Uploading .env to EC2..."
-            scp -o StrictHostKeyChecking=no -i key.pem .env ec2-user@${{ env.EC2_PUBLIC_IP }}:/home/ec2-user/customer-app/customer-app/.env
-
-            echo "Starting remote setup..."
-            ssh -o StrictHostKeyChecking=no -i key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
-        set -ex
-        sudo yum update -y
-        sudo yum install -y git python3 python3-venv mysql mysql-devel
-        sudo amazon-linux-extras enable nginx1
-        sudo yum clean metadata
-        sudo yum install -y nginx
-
-        python3 -m venv ~/venv
-        source ~/venv/bin/activate
-        pip install --upgrade pip
-        pip install mysql-connector-python uvicorn
-
-        cd /home/ec2-user
-        git clone https://github.com/${{ github.repository }} customer-app || (cd customer-app && git pull)
-        cd /home/ec2-user/customer-app/customer-app
-
-        pip install -r requirements.txt
-
+        # NGINX configuration
         sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
         server {
             listen 80;
@@ -430,16 +379,22 @@ jobs:
         }
         NGINX_EOF
 
-        sudo nginx -t && sudo systemctl enable --now nginx
+        # Validate and restart NGINX
+        sudo nginx -t
+        sudo systemctl restart nginx
+        sudo systemctl enable nginx
 
+        # Stop any existing Uvicorn processes
         pkill -f "uvicorn backend:app" || true
         sleep 2
 
-        source ~/venv/bin/activate
-        nohup uvicorn backend:app --host 127.0.0.1 --port 8000 > ~/uvicorn.log 2>&1 &
+        # Start the application
+        nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
 
-        echo "App deployed at: http://${{ env.EC2_PUBLIC_IP }}"
+        echo "Application deployed successfully!"
+        echo "Access the app at: http://${{ env.EC2_PUBLIC_IP }}"
         EOF
+  
 
     - name: Show Public URL
       run: |
