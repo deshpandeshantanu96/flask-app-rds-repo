@@ -345,7 +345,7 @@ jobs:
 
         pip install -r requirements.txt
 
-        cat > /home/ec2-user/customer-app/customer-app/.env << 'ENV_EOF'
+        cat > /home/ec2-user/customer-app/customer-app/.env << ENV_EOF
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USERNAME=${{ secrets.DB_USERNAME }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
