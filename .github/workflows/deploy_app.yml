@@ -390,11 +390,14 @@ jobs:
         DB_PORT=3306
         EOT
 
-        echo "Uploading .env to EC2..."
-        scp -o StrictHostKeyChecking=no -i key.pem .env ec2-user@${{ env.EC2_PUBLIC_IP }}:/home/ec2-user/customer-app/customer-app/.env
+            echo "Creating remote directory before upload..."
+            ssh -o StrictHostKeyChecking=no -i key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} "mkdir -p /home/ec2-user/customer-app/customer-app"
 
-        echo "Starting SSH script..."
-        ssh -o StrictHostKeyChecking=no -i key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+            echo "Uploading .env to EC2..."
+            scp -o StrictHostKeyChecking=no -i key.pem .env ec2-user@${{ env.EC2_PUBLIC_IP }}:/home/ec2-user/customer-app/customer-app/.env
+
+            echo "Starting remote setup..."
+            ssh -o StrictHostKeyChecking=no -i key.pem ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
         set -ex
         sudo yum update -y
         sudo yum install -y git python3 python3-venv mysql mysql-devel
@@ -407,13 +410,12 @@ jobs:
         pip install --upgrade pip
         pip install mysql-connector-python uvicorn
 
-        cd /home/ec2-user/customer-app || git clone https://github.com/${{ github.repository }} customer-app
-        cd /home/ec2-user/customer-app && git pull
-        cd customer-app
+        cd /home/ec2-user
+        git clone https://github.com/${{ github.repository }} customer-app || (cd customer-app && git pull)
+        cd /home/ec2-user/customer-app/customer-app
 
         pip install -r requirements.txt
 
-        sudo mkdir -p /etc/nginx/conf.d
         sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
         server {
             listen 80;
@@ -434,13 +436,10 @@ jobs:
         sleep 2
 
         source ~/venv/bin/activate
-        cd /home/ec2-user/customer-app/customer-app
         nohup uvicorn backend:app --host 127.0.0.1 --port 8000 > ~/uvicorn.log 2>&1 &
 
         echo "App deployed at: http://${{ env.EC2_PUBLIC_IP }}"
         EOF
-
-
 
     - name: Show Public URL
       run: |
