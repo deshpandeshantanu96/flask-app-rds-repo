@@ -349,7 +349,8 @@ jobs:
         DB_NAME=${{ secrets.DB_NAME }}
         DB_PORT=3306
         ENV_EOF
-
+        
+        sudo mkdir -p /etc/nginx/conf.d
         sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
         server {
             listen 80;
