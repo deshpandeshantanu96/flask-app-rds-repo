@@ -1,3 +1,219 @@
+# name: 🚀 Deploy FastAPI App on AWS EC2
+
+# on:
+#   workflow_dispatch:
+
+# env:
+#   AWS_REGION: 'us-east-1'
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#     - name: Checkout Code
+#       uses: actions/checkout@v4
+
+#     - name: Configure AWS Credentials
+#       uses: aws-actions/configure-aws-credentials@v2
+#       with:
+#         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#         aws-region: ${{ env.AWS_REGION }}
+
+#     - name: Create and store EC2 key pair
+#       id: create_keypair
+#       run: |
+#         set -eo pipefail
+#         KEY_NAME="fastapi-key-$(date +%s)"
+        
+#         # Create key pair and store in SSM immediately
+#         KEY_MATERIAL=$(aws ec2 create-key-pair \
+#           --key-name "$KEY_NAME" \
+#           --query 'KeyMaterial' \
+#           --output text \
+#           --region ${{ env.AWS_REGION }})
+        
+#         # Store in SSM Parameter Store (secure string)
+#         aws ssm put-parameter \
+#           --name "/ec2-keys/$KEY_NAME" \
+#           --value "$KEY_MATERIAL" \
+#           --type "SecureString" \
+#           --region ${{ env.AWS_REGION }}
+        
+#         # Set outputs for later steps
+#         echo "key_name=$KEY_NAME" >> $GITHUB_OUTPUT
+#         echo "key_ssm_path=/ec2-keys/$KEY_NAME" >> $GITHUB_OUTPUT
+#         echo "✅ Key pair created and stored in SSM: $KEY_NAME"
+
+#     - name: Lookup VPC/Subnet/SG dynamically
+#       run: |
+#         VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
+#         echo "VPC_ID=$VPC_ID" >> $GITHUB_ENV
+
+#         SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[0].SubnetId' --output text)
+#         echo "SUBNET_ID=$SUBNET_ID" >> $GITHUB_ENV
+
+#         SG_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[0].GroupId' --output text)
+#         echo "SG_ID=$SG_ID" >> $GITHUB_ENV
+
+#     - name: Update Security Group to allow SSH and HTTP
+#       run: |
+#         echo "Authorizing inbound SSH (port 22) and HTTP (port 8000) traffic on SG ${{ env.SG_ID }}"
+
+#         aws ec2 authorize-security-group-ingress \
+#           --group-id ${{ env.SG_ID }} \
+#           --protocol tcp \
+#           --port 22 \
+#           --cidr 0.0.0.0/0 || echo "Rule for SSH already exists"
+
+#         aws ec2 authorize-security-group-ingress \
+#           --group-id ${{ env.SG_ID }} \
+#           --protocol tcp \
+#           --port 8000 \
+#           --cidr 0.0.0.0/0 || echo "Rule for HTTP already exists"
+
+#     - name: Launch EC2 Instance with new key pair
+#       id: ec2
+#       run: |
+#         INSTANCE_ID=$(aws ec2 run-instances \
+#           --image-id ami-0c02fb55956c7d316 \
+#           --instance-type t2.micro \
+#           --key-name ${{ steps.create_keypair.outputs.key_name }} \
+#           --subnet-id ${{ env.SUBNET_ID }} \
+#           --security-group-ids ${{ env.SG_ID }} \
+#           --associate-public-ip-address \
+#           --query 'Instances[0].InstanceId' --output text)
+
+#         echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+
+#         aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+
+#         PUBLIC_IP=$(aws ec2 describe-instances \
+#           --instance-ids $INSTANCE_ID \
+#           --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+
+#         echo "EC2_PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
+
+#     - name: Wait for SSH to Become Available
+#       run: sleep 60
+
+#     - name: Retrieve key from SSM for SSH
+#       id: get_key
+#       run: |
+#         # Retrieve from SSM
+#         KEY_MATERIAL=$(aws ssm get-parameter \
+#           --name "${{ steps.create_keypair.outputs.key_ssm_path }}" \
+#           --with-decryption \
+#           --query Parameter.Value \
+#           --output text \
+#           --region ${{ env.AWS_REGION }})
+        
+#         # Write to file
+#         KEY_FILE="key.pem"
+#         echo "$KEY_MATERIAL" > "$KEY_FILE"
+#         chmod 400 "$KEY_FILE"
+#         echo "key_file=$KEY_FILE" >> $GITHUB_OUTPUT
+#         echo "✅ Key retrieved from SSM"
+
+#     - name: Install Dependencies & Configure Nginx
+#       run: |
+#         chmod 400 "${{ steps.get_key.outputs.key_file }}"
+        
+#         ssh -o StrictHostKeyChecking=no \
+#             -o UserKnownHostsFile=/dev/null \
+#             -i "${{ steps.get_key.outputs.key_file }}" \
+#             ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+#         set -e
+#         exec > >(tee /home/ec2-user/deploy.log) 2>&1
+
+#         echo "=== Starting Deployment ==="
+        
+#         # System updates and dependencies
+#         sudo yum update -y
+        
+#         # Enable EPEL and install Nginx (Amazon Linux specific)
+#         sudo amazon-linux-extras enable epel
+#         sudo yum install -y epel-release
+#         sudo yum install -y git python3 python3-venv nginx mysql mysql-devel
+
+#         # Python environment setup
+#         python3 -m venv /home/ec2-user/venv || echo "venv exists"
+#         source /home/ec2-user/venv/bin/activate
+
+#         # Install Python dependencies
+#         pip install --upgrade pip
+#         pip install mysql-connector-python
+
+#         # Application setup
+#         if [ ! -d "/home/ec2-user/customer-app" ]; then
+#           git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
+#         else
+#           cd /home/ec2-user/customer-app && git pull
+#         fi
+
+#         cd /home/ec2-user/customer-app
+#         pip install -r requirements.txt
+
+#         # Create environment file with DB credentials
+#         cat > /home/ec2-user/customer-app/.env << 'ENV_EOF'
+#         DB_HOST=${{ secrets.DB_HOST }}
+#         DB_USERNAME=${{ secrets.DB_USERNAME }}
+#         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+#         DB_NAME=${{ secrets.DB_NAME }}
+#         DB_PORT=3306
+#         ENV_EOF
+
+#         # Configure Nginx
+#         sudo mkdir -p /etc/nginx/conf.d
+#         sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
+#         server {
+#             listen 80;
+#             server_name _;
+            
+#             location / {
+#                 proxy_pass http://127.0.0.1:8000;
+#                 proxy_set_header Host $host;
+#                 proxy_set_header X-Real-IP $remote_addr;
+#                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#             }
+#         }
+#         NGINX_EOF
+
+#         # Validate and start Nginx
+#         sudo nginx -t
+#         sudo systemctl enable --now nginx
+
+#         # Stop existing Uvicorn if running
+#         pkill -f "uvicorn backend:app" || true
+#         sleep 2
+
+#         # Start Uvicorn (bound to localhost only)
+#         cd /home/ec2-user/customer-app
+
+#         if [ -f "backend.py" ]; then
+#           nohup /home/ec2-user/venv/bin/uvicorn backend:app \
+#             --host 127.0.0.1 \
+#             --port 8000 \
+#             > /home/ec2-user/uvicorn.log 2>&1 &
+#         else
+#           echo "❌ backend.py not found in /home/ec2-user/customer-app"
+#           exit 1
+#         fi
+
+#         echo "Checking Uvicorn log:"
+#         tail -n 20 /home/ec2-user/uvicorn.log
+
+#         echo "=== Deployment Complete ==="
+#         echo "Access your app at: http://${{ env.EC2_PUBLIC_IP }}"
+#         EOF
+
+#     - name: Show Public URL
+#       run: |
+#         echo "✅ Your FastAPI app is deployed and running!"
+#         echo "🌐 Open the app here: http://${{ env.EC2_PUBLIC_IP }}"
+
+
 name: 🚀 Deploy FastAPI App on AWS EC2
 
 on:
@@ -26,25 +242,21 @@ jobs:
       run: |
         set -eo pipefail
         KEY_NAME="fastapi-key-$(date +%s)"
-        
-        # Create key pair and store in SSM immediately
+
         KEY_MATERIAL=$(aws ec2 create-key-pair \
           --key-name "$KEY_NAME" \
           --query 'KeyMaterial' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        
-        # Store in SSM Parameter Store (secure string)
+
         aws ssm put-parameter \
           --name "/ec2-keys/$KEY_NAME" \
           --value "$KEY_MATERIAL" \
           --type "SecureString" \
           --region ${{ env.AWS_REGION }}
-        
-        # Set outputs for later steps
+
         echo "key_name=$KEY_NAME" >> $GITHUB_OUTPUT
         echo "key_ssm_path=/ec2-keys/$KEY_NAME" >> $GITHUB_OUTPUT
-        echo "✅ Key pair created and stored in SSM: $KEY_NAME"
 
     - name: Lookup VPC/Subnet/SG dynamically
       run: |
@@ -59,19 +271,17 @@ jobs:
 
     - name: Update Security Group to allow SSH and HTTP
       run: |
-        echo "Authorizing inbound SSH (port 22) and HTTP (port 8000) traffic on SG ${{ env.SG_ID }}"
-
         aws ec2 authorize-security-group-ingress \
           --group-id ${{ env.SG_ID }} \
           --protocol tcp \
           --port 22 \
-          --cidr 0.0.0.0/0 || echo "Rule for SSH already exists"
+          --cidr 0.0.0.0/0 || echo "SSH rule exists"
 
         aws ec2 authorize-security-group-ingress \
           --group-id ${{ env.SG_ID }} \
           --protocol tcp \
-          --port 8000 \
-          --cidr 0.0.0.0/0 || echo "Rule for HTTP already exists"
+          --port 80 \
+          --cidr 0.0.0.0/0 || echo "HTTP rule exists"
 
     - name: Launch EC2 Instance with new key pair
       id: ec2
@@ -101,62 +311,38 @@ jobs:
     - name: Retrieve key from SSM for SSH
       id: get_key
       run: |
-        # Retrieve from SSM
         KEY_MATERIAL=$(aws ssm get-parameter \
           --name "${{ steps.create_keypair.outputs.key_ssm_path }}" \
           --with-decryption \
           --query Parameter.Value \
-          --output text \
-          --region ${{ env.AWS_REGION }})
-        
-        # Write to file
-        KEY_FILE="key.pem"
-        echo "$KEY_MATERIAL" > "$KEY_FILE"
-        chmod 400 "$KEY_FILE"
-        echo "key_file=$KEY_FILE" >> $GITHUB_OUTPUT
-        echo "✅ Key retrieved from SSM"
+          --output text)
 
-    - name: Install Dependencies & Configure Nginx
+        echo "$KEY_MATERIAL" > key.pem
+        chmod 400 key.pem
+        echo "key_file=key.pem" >> $GITHUB_OUTPUT
+
+    - name: Install Dependencies & Deploy App
       run: |
-        chmod 400 "${{ steps.get_key.outputs.key_file }}"
-        
         ssh -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
-            -i "${{ steps.get_key.outputs.key_file }}" \
+            -i key.pem \
             ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
         set -e
-        exec > >(tee /home/ec2-user/deploy.log) 2>&1
-
-        echo "=== Starting Deployment ==="
-        
-        # System updates and dependencies
         sudo yum update -y
-        
-        # Enable EPEL and install Nginx (Amazon Linux specific)
-        sudo amazon-linux-extras enable epel
-        sudo yum install -y epel-release
         sudo yum install -y git python3 python3-venv nginx mysql mysql-devel
 
-        # Python environment setup
-        python3 -m venv /home/ec2-user/venv || echo "venv exists"
-        source /home/ec2-user/venv/bin/activate
-
-        # Install Python dependencies
+        python3 -m venv ~/venv
+        source ~/venv/bin/activate
         pip install --upgrade pip
         pip install mysql-connector-python
 
-        # Application setup
-        if [ ! -d "/home/ec2-user/customer-app" ]; then
-          git clone https://github.com/${{ github.repository }} /home/ec2-user/customer-app
-        else
-          cd /home/ec2-user/customer-app && git pull
-        fi
+        cd /home/ec2-user
+        git clone https://github.com/${{ github.repository }} customer-app || (cd customer-app && git pull)
+        cd customer-app/customer-app
 
-        cd /home/ec2-user/customer-app
         pip install -r requirements.txt
 
-        # Create environment file with DB credentials
-        cat > /home/ec2-user/customer-app/.env << 'ENV_EOF'
+        cat > /home/ec2-user/customer-app/customer-app/.env << 'ENV_EOF'
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USERNAME=${{ secrets.DB_USERNAME }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
@@ -164,13 +350,11 @@ jobs:
         DB_PORT=3306
         ENV_EOF
 
-        # Configure Nginx
-        sudo mkdir -p /etc/nginx/conf.d
         sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
         server {
             listen 80;
             server_name _;
-            
+
             location / {
                 proxy_pass http://127.0.0.1:8000;
                 proxy_set_header Host $host;
@@ -180,35 +364,18 @@ jobs:
         }
         NGINX_EOF
 
-        # Validate and start Nginx
-        sudo nginx -t
-        sudo systemctl enable --now nginx
+        sudo nginx -t && sudo systemctl enable --now nginx
 
-        # Stop existing Uvicorn if running
         pkill -f "uvicorn backend:app" || true
         sleep 2
 
-        # Start Uvicorn (bound to localhost only)
-        cd /home/ec2-user/customer-app
+        cd /home/ec2-user/customer-app/customer-app
+        nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
 
-        if [ -f "backend.py" ]; then
-          nohup /home/ec2-user/venv/bin/uvicorn backend:app \
-            --host 127.0.0.1 \
-            --port 8000 \
-            > /home/ec2-user/uvicorn.log 2>&1 &
-        else
-          echo "❌ backend.py not found in /home/ec2-user/customer-app"
-          exit 1
-        fi
-
-        echo "Checking Uvicorn log:"
-        tail -n 20 /home/ec2-user/uvicorn.log
-
-        echo "=== Deployment Complete ==="
-        echo "Access your app at: http://${{ env.EC2_PUBLIC_IP }}"
+        echo "Access app at: http://${{ env.EC2_PUBLIC_IP }}"
         EOF
 
     - name: Show Public URL
       run: |
-        echo "✅ Your FastAPI app is deployed and running!"
-        echo "🌐 Open the app here: http://${{ env.EC2_PUBLIC_IP }}"
+        echo "✅ FastAPI app deployed!"
+        echo "🌐 http://${{ env.EC2_PUBLIC_IP }}"

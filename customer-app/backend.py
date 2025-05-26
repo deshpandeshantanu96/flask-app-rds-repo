@@ -394,11 +394,12 @@ def get_db_cursor(conn):
     """Context manager for database cursors"""
     cursor = None
     try:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(dictionary=True, buffered=True)
         yield cursor
     finally:
         if cursor:
             cursor.close()
+
 
 # --- Authentication ---
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -447,22 +448,25 @@ async def read_users(request: Request):
         )
 
 @app.get("/user/{user_id}", response_class=HTMLResponse)
-async def read_user(request: Request, user_id: int):
+async def read_user(request: Request, user_id: str):
     """View single user details"""
     try:
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cursor:
                 cursor.execute(
-                    "SELECT * FROM customers WHERE id = %s",
+                    "SELECT * FROM customers WHERE `Customer Id` = %s",
                     (user_id,)
                 )
                 user = cursor.fetchone()
                 
                 if not user:
+                    logger.info(f"Looking up user with Customer Id: {user_id}")
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="User not found"
                     )
+                    
+
                 
                 is_admin = request.session.get("is_admin", False)
                 return templates.TemplateResponse(
@@ -481,7 +485,7 @@ async def read_user(request: Request, user_id: int):
 @app.post("/user/{user_id}/update")
 async def update_user(
     request: Request,
-    user_id: int,
+    user_id: str,
     first_name: str = Form(...),
     last_name: str = Form(...)
 ):
@@ -493,8 +497,8 @@ async def update_user(
             with get_db_cursor(conn) as cursor:
                 cursor.execute(
                     """UPDATE customers 
-                    SET first_name = %s, last_name = %s 
-                    WHERE id = %s""",
+                    SET `First Name` = %s, `Last Name` = %s 
+                    WHERE `Customer Id` = %s""",
                     (form_data.first_name, form_data.last_name, user_id)
                 )
                 conn.commit()
@@ -503,22 +507,21 @@ async def update_user(
             url=f"/user/{user_id}",
             status_code=status.HTTP_303_SEE_OTHER
         )
-    
+
     except ValueError as e:
-        with get_db_connection() as conn:
-            with get_db_cursor(conn) as cursor:
-                cursor.execute(
-                    "SELECT * FROM customers WHERE id = %s",
-                    (user_id,)
-                )
-                user = cursor.fetchone()
-        
+        # Don't retry DB access here if validation fails
+        user = {
+            "Customer Id": user_id,
+            "First Name": first_name,
+            "Last Name": last_name
+        }
         return templates.TemplateResponse(
             "user.html",
             {
                 "request": request,
                 "user": user,
-                "errors": {"form": str(e)}
+                "errors": {"form": str(e)},
+                "is_admin": request.session.get("is_admin", False)
             },
             status_code=status.HTTP_400_BAD_REQUEST
         )
@@ -528,6 +531,63 @@ async def update_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+    
+@app.get("/user/{user_id}/confirm-delete", response_class=HTMLResponse)
+async def confirm_delete_user(request: Request, user_id: str):
+    """Render confirmation page for deleting a user"""
+    try:
+        with get_db_connection() as conn:
+            with get_db_cursor(conn) as cursor:
+                cursor.execute(
+                    "SELECT * FROM customers WHERE `Customer Id` = %s",
+                    (user_id,)
+                )
+                user = cursor.fetchone()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        return templates.TemplateResponse(
+            "confirm_delete.html",
+            {"request": request, "user": user}
+        )
+    except Exception as e:
+        logger.error(f"Error in confirm_delete_user: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+@app.post("/user/{user_id}/delete")
+async def delete_user(request: Request, user_id: str):
+    """Delete a user by Customer Id"""
+    try:
+        logger.info(f"Attempting to delete user with Customer Id: {user_id}")
+
+        with get_db_connection() as conn:
+            with get_db_cursor(conn) as cursor:
+                cursor.execute(
+                    "DELETE FROM customers WHERE `Customer Id` = %s",
+                    (user_id,)
+                )
+                conn.commit()
+
+        logger.info(f"Successfully deleted user with Customer Id: {user_id}")
+
+        return RedirectResponse(
+            url="/",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+    except Exception as e:
+        logger.error(f"Error in delete_user: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
 
 # --- Admin Routes ---
 @app.get("/login", response_class=HTMLResponse)
@@ -581,7 +641,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         app,
-        host="127.0.0.1",
+        host="127.0.0.2",
         port=8000,
         reload=os.getenv("ENVIRONMENT") == "development"
     )

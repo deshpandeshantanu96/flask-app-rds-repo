@@ -1,36 +1,3 @@
-<!-- <!DOCTYPE html>
-<html>
-<head>
-    <title>User Profile</title>
-</head>
-<body>
-    <h2>User Profile</h2>
-
-    <p><strong>Customer ID:</strong> {{ user['Customer Id'] }}</p>
-    <p><strong>Name:</strong> {{ user['First Name'] }} {{ user['Last Name'] }}</p>
-    <p><strong>Company:</strong> {{ user['Company'] }}</p>
-    <p><strong>City:</strong> {{ user['City'] }}</p>
-    <p><strong>Country:</strong> {{ user['Country'] }}</p>
-
-    <form method="post" action="/user/{{ user['Index'] }}/update">
-        <label>First Name: <input type="text" name="first_name" value="{{ user['First Name'] }}"></label><br>
-        <label>Last Name: <input type="text" name="last_name" value="{{ user['Last Name'] }}"></label><br> -->
-        <!-- Optionally add editable fields for other columns -->
-        <!--
-        <label>Company: <input type="text" name="company" value="{{ user['Company'] }}"></label><br>
-        <label>City: <input type="text" name="city" value="{{ user['City'] }}"></label><br>
-        <label>Country: <input type="text" name="country" value="{{ user['Country'] }}"></label><br>
-        -->
-        <!-- <button type="submit">Update</button>
-    </form>
-
-    <form method="post" action="/user/{{ user['Index'] }}/delete" style="margin-top: 20px;">
-        <button type="submit">Delete</button>
-    </form>
-
-    <p><a href="/">Back to List</a></p>
-</body>
-</html> -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -38,11 +5,7 @@
     <style>
         .error { color: red; }
         .form-group { margin-bottom: 15px; }
-        .delete-form { 
-            margin-top: 30px; 
-            border-top: 1px solid #ccc; 
-            padding-top: 20px; 
-        }
+        .delete-form { margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px; }
         .admin-only { color: red; }
     </style>
 </head>
@@ -61,7 +24,7 @@
     <p><strong>City:</strong> {{ user['City'] }}</p>
     <p><strong>Country:</strong> {{ user['Country'] }}</p>
 
-    <form method="post" action="/user/{{ user['Index'] }}/update">
+    <form method="post" action="/user/{{ user['Customer Id'] }}/update">
         <div class="form-group">
             <label>First Name: 
                 <input type="text" name="first_name" value="{{ user['First Name'] }}" required
@@ -87,7 +50,7 @@
 
     {% if is_admin %}
     <div class="delete-form">
-        <form method="post" action="/user/{{ user['Index'] }}/delete">
+        <form method="post" action="/user/{{ user['Customer Id'] }}/delete">
             <button type="submit" class="admin-only" 
                     onclick="return confirm('Are you sure you want to delete this user?')">
                 Delete User
@@ -97,27 +60,5 @@
     {% endif %}
 
     <p><a href="/">Back to List</a></p>
-
-    <script>
-        // Client-side validation
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const firstName = document.querySelector('input[name="first_name"]');
-            const lastName = document.querySelector('input[name="last_name"]');
-            
-            if (firstName.value.length < 2) {
-                alert('First name must be at least 2 characters');
-                e.preventDefault();
-                return false;
-            }
-            
-            if (lastName.value.length < 2) {
-                alert('Last name must be at least 2 characters');
-                e.preventDefault();
-                return false;
-            }
-            
-            return true;
-        });
-    </script>
 </body>
 </html>

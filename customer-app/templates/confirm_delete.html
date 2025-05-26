@@ -23,9 +23,9 @@
         <p><strong>Customer ID:</strong> {{ user['Customer Id'] }}</p>
         
         <div class="button-group">
-            <form method="post" action="/user/{{ user['Index'] }}/delete">
+            <form method="post" action="/user/{{ user['Customer Id'] }}/delete">
                 <button type="submit" class="delete-btn">Confirm Delete</button>
-                <a href="/user/{{ user['Index'] }}">Cancel</a>
+                <a href="/user/{{ user['Customer Id'] }}">Cancel</a>
             </form>
         </div>
     </div>
