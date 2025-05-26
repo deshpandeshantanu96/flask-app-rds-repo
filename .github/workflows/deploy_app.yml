@@ -346,7 +346,7 @@ jobs:
         DB_HOST= ${{ secrets.RDS_HOST }}
         DB_USERNAME=${{ secrets.RDS_USERNAME }}
         DB_PASSWORD=${{ secrets.RDS_PASSWORD }}
-        DB_NAME=${{ secrets.RDS_NAME }}
+        DB_NAME=${{ secrets.RDS_DBNAME }}
         DB_PORT=3306
         EOT
             sudo mkdir -p /etc/nginx/conf.d
