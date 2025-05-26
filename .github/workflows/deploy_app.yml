@@ -328,17 +328,38 @@ jobs:
         DB_PASS: ${{ secrets.DB_PASSWORD }}
         DB_NAME: ${{ secrets.DB_NAME }}
       run: |
+        # First verify secrets are available locally
+        echo "Verifying secrets..."
+        echo "DB_HOST: $DB_HOST"
+        echo "DB_USER: $DB_USER"
+        echo "DB_NAME: $DB_NAME"
+        
+        if [ -z "$DB_HOST" ]; then
+          echo "ERROR: DB_HOST is empty! Check GitHub secrets."
+          exit 1
+        fi
+
+        # Deploy to EC2
         ssh -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -i key.pem \
-            ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOSSH'
-        set -ex  # Enable debugging and exit on error
+            ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
+        set -ex
+        
+        # Install required tools first
+        sudo yum install -y nc mysql
 
-        # System updates
+        # Verify environment variables were passed
+        echo "Remote DB_HOST: \$DB_HOST"
+        if [ -z "\$DB_HOST" ]; then
+          echo "ERROR: DB_HOST not passed to remote shell"
+          exit 1
+        fi
+
+        # System setup
         sudo yum update -y
-        sudo yum install -y git python3 python3-venv mysql mysql-devel
+        sudo yum install -y git python3 python3-venv mysql-devel
         sudo amazon-linux-extras enable nginx1
-        sudo yum clean metadata
         sudo yum install -y nginx
 
         # Python environment
@@ -349,18 +370,10 @@ jobs:
 
         # Application setup
         cd /home/ec2-user
-        if [ -d "customer-app" ]; then
-            cd customer-app
-            git pull
-            cd ..
-        else
-            git clone https://github.com/${{ github.repository }} customer-app
-        fi
+        [ -d "customer-app" ] && (cd customer-app && git pull) || git clone https://github.com/${{ github.repository }} customer-app
         cd customer-app/customer-app
 
-        pip install -r requirements.txt
-
-        # Create .env file with RDS connection details
+        # Create .env file
         cat <<EOT > .env
         DB_HOST=$DB_HOST
         DB_USER=$DB_USER
@@ -370,46 +383,24 @@ jobs:
         EOT
         chmod 600 .env
 
-        # Verify network connectivity to RDS
-        echo "Testing connection to RDS at $DB_HOST:3306..."
-        if nc -zv -w 5 $DB_HOST 3306; then
-            echo "Network connection to RDS successful"
+        # Test database connectivity
+        echo "Testing MySQL connection to \$DB_HOST..."
+        if mysql -h "\$DB_HOST" -u "\$DB_USER" -p"\$DB_PASS" -e "SELECT 1" "\$DB_NAME"; then
+          echo "Database connection successful"
         else
-            echo "ERROR: Cannot reach RDS at $DB_HOST:3306"
-            echo "Check:"
-            echo "1. RDS security group allows EC2's security group"
-            echo "2. RDS is publicly accessible (if needed)"
-            exit 1
+          echo "ERROR: Database connection failed"
+          echo "Troubleshooting:"
+          echo "1. Verify RDS endpoint: \$DB_HOST"
+          echo "2. Check security group allows EC2 IP: ${{ env.EC2_PUBLIC_IP }}"
+          echo "3. Confirm database credentials"
+          exit 1
         fi
 
-        # Verify DB credentials
-        if ~/venv/bin/python3 -c "
-        import mysql.connector
-        try:
-            conn = mysql.connector.connect(
-                host='$DB_HOST',
-                user='$DB_USER',
-                password='$DB_PASS',
-                database='$DB_NAME',
-                port=3306
-            )
-            print('Database connection successful!')
-            conn.close()
-        except Exception as e:
-            print(f'Database connection failed: {e}')
-            raise
-        "; then
-            echo "Database credentials are valid"
-        else
-            exit 1
-        fi
-
-        # NGINX configuration
+        # NGINX setup
         sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
         server {
             listen 80;
             server_name _;
-
             location / {
                 proxy_pass http://127.0.0.1:8000;
                 proxy_set_header Host \$host;
@@ -419,20 +410,16 @@ jobs:
         }
         NGINX_EOF
 
-        sudo nginx -t
-        sudo systemctl restart nginx
+        sudo nginx -t && sudo systemctl restart nginx
         sudo systemctl enable nginx
 
-        # Stop existing Uvicorn processes
+        # Restart application
         pkill -f "uvicorn backend:app" || true
         sleep 2
+        nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > uvicorn.log 2>&1 &
 
-        # Start application with proper DB config
-        nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
-
-        echo "Application deployed successfully!"
-        echo "Access the app at: http://${{ env.EC2_PUBLIC_IP }}"
-        EOSSH
+        echo "Deployment complete! Access at: http://${{ env.EC2_PUBLIC_IP }}"
+        EOF
   
 
     - name: Show Public URL
