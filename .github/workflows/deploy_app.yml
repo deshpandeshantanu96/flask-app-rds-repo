@@ -326,7 +326,7 @@ jobs:
         ssh -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -i key.pem \
-            ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+            ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
         set -e
         sudo yum update -y
         sudo yum install -y git python3 python3-venv mysql mysql-devel
@@ -345,39 +345,41 @@ jobs:
 
         pip install -r requirements.txt
 
-        cat > /home/ec2-user/customer-app/customer-app/.env << ENV_EOF
+        # ✅ Proper .env creation with secrets interpolated from GitHub Actions
+        cat <<EOT > /home/ec2-user/customer-app/customer-app/.env
         DB_HOST=${{ secrets.DB_HOST }}
         DB_USERNAME=${{ secrets.DB_USERNAME }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
         DB_NAME=${{ secrets.DB_NAME }}
         DB_PORT=3306
-        ENV_EOF
-        
-        sudo mkdir -p /etc/nginx/conf.d
-        sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
+        EOT
+
+            sudo mkdir -p /etc/nginx/conf.d
+            sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
         server {
             listen 80;
             server_name _;
 
             location / {
                 proxy_pass http://127.0.0.1:8000;
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$remote_addr;
+                proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
             }
         }
         NGINX_EOF
 
-        sudo nginx -t && sudo systemctl enable --now nginx
+            sudo nginx -t && sudo systemctl enable --now nginx
 
-        pkill -f "uvicorn backend:app" || true
-        sleep 2
+            pkill -f "uvicorn backend:app" || true
+            sleep 2
 
-        cd /home/ec2-user/customer-app/customer-app
-        nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
+            cd /home/ec2-user/customer-app/customer-app
+            nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
 
-        echo "Access app at: http://${{ env.EC2_PUBLIC_IP }}"
-        EOF
+            echo "Access app at: http://${{ env.EC2_PUBLIC_IP }}"
+            EOF
+
 
     - name: Show Public URL
       run: |
