@@ -322,12 +322,18 @@ jobs:
         echo "key_file=key.pem" >> $GITHUB_OUTPUT
 
     - name: Install Dependencies & Deploy App
+      env:
+        DB_HOST: ${{ secrets.DB_HOST }}
+        DB_USER: ${{ secrets.DB_USERNAME }}
+        DB_PASS: ${{ secrets.DB_PASSWORD }}
+        DB_NAME: ${{ secrets.DB_NAME }}
       run: |
         ssh -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -i key.pem \
-            ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOF'
-        set -e
+            ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOSSH'
+        set -ex  # Enable debugging and exit on error
+
         # System updates and package installations
         sudo yum update -y
         sudo yum install -y git python3 python3-venv mysql mysql-devel
@@ -354,17 +360,43 @@ jobs:
 
         pip install -r requirements.txt
 
-        # Secure .env file creation with proper permissions
+        # Secure .env file creation
         cat <<EOT > .env
-        DB_HOST=${{ secrets.DB_HOST }}
-        DB_USERNAME=${{ secrets.DB_USERNAME }}
-        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-        DB_NAME=${{ secrets.DB_NAME }}
+        DB_HOST=$DB_HOST
+        DB_USERNAME=$DB_USER
+        DB_PASSWORD=$DB_PASS
+        DB_NAME=$DB_NAME
         DB_PORT=3306
         EOT
-        chmod 600 .env  # Restrict permissions on the .env file
-        
-        echo "DB_HOST=$DB_HOST"
+        chmod 600 .env
+
+        # Debug: Verify .env contents (remove after testing)
+        echo "---- .env contents ----"
+        cat .env
+        echo "---- End .env ----"
+
+        # Verify DB connection (remove after testing)
+        if ~/venv/bin/python3 -c "
+        import mysql.connector
+        try:
+            conn = mysql.connector.connect(
+                host='$DB_HOST',
+                user='$DB_USER',
+                password='$DB_PASS',
+                database='$DB_NAME',
+                port=3306
+            )
+            print('Database connection successful!')
+            conn.close()
+        except Exception as e:
+            print(f'Database connection failed: {e}')
+            raise
+        "; then
+            echo "Database connection test passed"
+        else
+            echo "Database connection test failed"
+            exit 1
+        fi
 
         # NGINX configuration
         sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
@@ -395,7 +427,7 @@ jobs:
 
         echo "Application deployed successfully!"
         echo "Access the app at: http://${{ env.EC2_PUBLIC_IP }}"
-        EOF
+        EOSSH
   
 
     - name: Show Public URL
