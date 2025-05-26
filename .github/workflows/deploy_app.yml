@@ -327,38 +327,33 @@ jobs:
             -o UserKnownHostsFile=/dev/null \
             -i key.pem \
             ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
-        set -ex
+        set -e
         sudo yum update -y
         sudo yum install -y git python3 python3-venv mysql mysql-devel
         sudo amazon-linux-extras enable nginx1
         sudo yum clean metadata
         sudo yum install -y nginx
-
         python3 -m venv ~/venv
         source ~/venv/bin/activate
         pip install --upgrade pip
-        pip install mysql-connector-python uvicorn
-
+        pip install mysql-connector-python
         cd /home/ec2-user
         git clone https://github.com/${{ github.repository }} customer-app || (cd customer-app && git pull)
         cd customer-app/customer-app
-
         pip install -r requirements.txt
-
+        # ✅ Proper .env creation with secrets interpolated from GitHub Actions
         cat <<EOT > /home/ec2-user/customer-app/customer-app/.env
-        DB_HOST=${{ secrets.RDS_HOST }}
+        DB_HOST= ${{ secrets.RDS_HOST }}
         DB_USERNAME=${{ secrets.RDS_USERNAME }}
         DB_PASSWORD=${{ secrets.RDS_PASSWORD }}
         DB_NAME=${{ secrets.RDS_NAME }}
         DB_PORT=3306
         EOT
-
-        sudo mkdir -p /etc/nginx/conf.d
-        sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
+            sudo mkdir -p /etc/nginx/conf.d
+            sudo tee /etc/nginx/conf.d/fastapi.conf > /dev/null << 'NGINX_EOF'
         server {
             listen 80;
             server_name _;
-
             location / {
                 proxy_pass http://127.0.0.1:8000;
                 proxy_set_header Host \$host;
@@ -367,17 +362,12 @@ jobs:
             }
         }
         NGINX_EOF
-
         sudo nginx -t && sudo systemctl enable --now nginx
-
         pkill -f "uvicorn backend:app" || true
         sleep 2
-
-        source ~/venv/bin/activate
         cd /home/ec2-user/customer-app/customer-app
-        nohup uvicorn backend:app --host 127.0.0.1 --port 8000 > ~/uvicorn.log 2>&1 &
-
-        echo "App running at: http://${{ env.EC2_PUBLIC_IP }}"
+        nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
+        echo "Access app at: http://${{ env.EC2_PUBLIC_IP }}"
         EOF
 
   
