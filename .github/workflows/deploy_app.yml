@@ -328,39 +328,31 @@ jobs:
         DB_PASS: ${{ secrets.DB_PASSWORD }}
         DB_NAME: ${{ secrets.DB_NAME }}
       run: |
-        # First verify secrets are available locally
-        echo "Verifying secrets..."
-        echo "DB_HOST: $DB_HOST"
-        echo "DB_USER: $DB_USER"
-        echo "DB_NAME: $DB_NAME"
+        # Debug: Print all environment variables (remove after debugging)
+        printenv | grep DB_
         
         if [ -z "$DB_HOST" ]; then
-          echo "ERROR: DB_HOST is empty! Check GitHub secrets."
+          echo "::error::DB_HOST is empty! Check GitHub secrets."
+          echo "::error::Make sure these secrets exist: DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME"
           exit 1
         fi
 
-        # Deploy to EC2
         ssh -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -i key.pem \
-            ec2-user@${{ env.EC2_PUBLIC_IP }} << EOF
+            ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOSSH'
         set -ex
         
-        # Install required tools first
-        sudo yum install -y nc mysql
-
-        # Verify environment variables were passed
-        echo "Remote DB_HOST: \$DB_HOST"
-        if [ -z "\$DB_HOST" ]; then
-          echo "ERROR: DB_HOST not passed to remote shell"
-          exit 1
-        fi
+        # Install required tools
+        sudo yum install -y mysql
 
         # System setup
         sudo yum update -y
-        sudo yum install -y git python3 python3-venv mysql-devel
-        sudo amazon-linux-extras enable nginx1
-        sudo yum install -y nginx
+        sudo yum install -y git python3 python3-venv mysql-devel nginx
+
+        # Verify variables were passed
+        echo "Using DB_HOST: $DB_HOST"
+        echo "Using DB_USER: $DB_USER"
 
         # Python environment
         python3 -m venv ~/venv
