@@ -334,14 +334,14 @@ jobs:
             ec2-user@${{ env.EC2_PUBLIC_IP }} << 'EOSSH'
         set -ex  # Enable debugging and exit on error
 
-        # System updates and package installations
+        # System updates
         sudo yum update -y
         sudo yum install -y git python3 python3-venv mysql mysql-devel
         sudo amazon-linux-extras enable nginx1
         sudo yum clean metadata
         sudo yum install -y nginx
 
-        # Python environment setup
+        # Python environment
         python3 -m venv ~/venv
         source ~/venv/bin/activate
         pip install --upgrade pip
@@ -360,22 +360,29 @@ jobs:
 
         pip install -r requirements.txt
 
-        # Secure .env file creation
+        # Create .env file with RDS connection details
         cat <<EOT > .env
         DB_HOST=$DB_HOST
-        DB_USERNAME=$DB_USER
+        DB_USER=$DB_USER
         DB_PASSWORD=$DB_PASS
         DB_NAME=$DB_NAME
         DB_PORT=3306
         EOT
         chmod 600 .env
 
-        # Debug: Verify .env contents (remove after testing)
-        echo "---- .env contents ----"
-        cat .env
-        echo "---- End .env ----"
+        # Verify network connectivity to RDS
+        echo "Testing connection to RDS at $DB_HOST:3306..."
+        if nc -zv -w 5 $DB_HOST 3306; then
+            echo "Network connection to RDS successful"
+        else
+            echo "ERROR: Cannot reach RDS at $DB_HOST:3306"
+            echo "Check:"
+            echo "1. RDS security group allows EC2's security group"
+            echo "2. RDS is publicly accessible (if needed)"
+            exit 1
+        fi
 
-        # Verify DB connection (remove after testing)
+        # Verify DB credentials
         if ~/venv/bin/python3 -c "
         import mysql.connector
         try:
@@ -392,9 +399,8 @@ jobs:
             print(f'Database connection failed: {e}')
             raise
         "; then
-            echo "Database connection test passed"
+            echo "Database credentials are valid"
         else
-            echo "Database connection test failed"
             exit 1
         fi
 
@@ -413,16 +419,15 @@ jobs:
         }
         NGINX_EOF
 
-        # Validate and restart NGINX
         sudo nginx -t
         sudo systemctl restart nginx
         sudo systemctl enable nginx
 
-        # Stop any existing Uvicorn processes
+        # Stop existing Uvicorn processes
         pkill -f "uvicorn backend:app" || true
         sleep 2
 
-        # Start the application
+        # Start application with proper DB config
         nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
 
         echo "Application deployed successfully!"
