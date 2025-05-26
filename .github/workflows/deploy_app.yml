@@ -369,16 +369,16 @@ jobs:
         }
         NGINX_EOF
 
-            sudo nginx -t && sudo systemctl enable --now nginx
+        sudo nginx -t && sudo systemctl enable --now nginx
 
-            pkill -f "uvicorn backend:app" || true
-            sleep 2
+        pkill -f "uvicorn backend:app" || true
+        sleep 2
 
-            cd /home/ec2-user/customer-app/customer-app
-            nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
+        cd /home/ec2-user/customer-app/customer-app
+        nohup ~/venv/bin/uvicorn backend:app --host 127.0.0.1 --port 8000 > /home/ec2-user/uvicorn.log 2>&1 &
 
-            echo "Access app at: http://${{ env.EC2_PUBLIC_IP }}"
-            EOF
+        echo "Access app at: http://${{ env.EC2_PUBLIC_IP }}"
+        EOF
 
 
     - name: Show Public URL
