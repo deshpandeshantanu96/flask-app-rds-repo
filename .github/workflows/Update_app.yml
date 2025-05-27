@@ -15,7 +15,7 @@ on:
 env:
   AWS_REGION: 'us-east-1'  # Change to your region
   EC2_INSTANCE_ID: 'i-0e5aed48bf4deef4f'  # Replace with your EC2 instance ID
-  DEPLOYMENT_DIR: '/home/ec2-user/customer-app'  # Replace with your deployment directory
+  DEPLOYMENT_DIR: '/home/ec2-user/customer-app/customer-app'  # Replace with your deployment directory
   EC2_HOST: '44.204.161.247'
 
 jobs:
