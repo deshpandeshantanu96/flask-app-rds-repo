@@ -25,22 +25,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies and build
-        run: |
-          npm install
-          npm run build
-
-      - name: Configure SSH
+      - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_KEY_EC2 }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan $EC2_HOST >> ~/.ssh/known_hosts
+          ssh-keyscan ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Copy files to EC2
+      - name: Copy app files to EC2
         run: |
-          scp -r ./dist/* ec2-user@$EC2_HOST:$DEPLOYMENT_DIR
+          scp -r ./customer-app/* ec2-user@${{ env.EC2_HOST }}:${{ env.DEPLOYMENT_DIR }}
 
-      - name: Restart application (if needed)
+      - name: Restart FastAPI service
         run: |
-          ssh ec2-user@$EC2_HOST "sudo systemctl restart fastapi-app.service"  # Adjust service name
+          ssh -i ~/.ssh/id_rsa ec2-user@${{ env.EC2_HOST }} "sudo systemctl restart fastapi-app.service"
