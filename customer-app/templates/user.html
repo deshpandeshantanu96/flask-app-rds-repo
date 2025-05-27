@@ -28,7 +28,8 @@
         <div class="form-group">
             <label>First Name: 
                 <input type="text" name="first_name" value="{{ user['First Name'] }}" required
-                       minlength="2" maxlength="50">
+                       minlength="2" maxlength="50" pattern="[A-Za-z'-]+"
+                       title="Only alphabets are allowed (no numbers or special characters)">
             </label>
             {% if errors and errors.form and "First name" in errors.form %}
                 <span class="error">{{ errors.form }}</span>
@@ -38,7 +39,8 @@
         <div class="form-group">
             <label>Last Name: 
                 <input type="text" name="last_name" value="{{ user['Last Name'] }}" required
-                       minlength="2" maxlength="50">
+                       minlength="2" maxlength="50" pattern="[A-Za-z'-]+"
+                       title="Only alphabets are allowed (no numbers or special characters)">
             </label>
             {% if errors and errors.form and "Last name" in errors.form %}
                 <span class="error">{{ errors.form }}</span>
