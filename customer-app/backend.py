@@ -360,6 +360,8 @@ class UserUpdateForm(BaseModel):
             raise ValueError('First name must be at least 2 characters')
         if len(v) > 50:
             raise ValueError('First name cannot exceed 50 characters')
+        if not re.fullmatch(r"[A-Za-z'-]+", v):
+            raise ValueError('First name must contain only alphabets, apostrophe, or hyphen')
         return v
 
     @field_validator('last_name')
@@ -369,6 +371,8 @@ class UserUpdateForm(BaseModel):
             raise ValueError('Last name must be at least 2 characters')
         if len(v) > 50:
             raise ValueError('Last name cannot exceed 50 characters')
+        if not re.fullmatch(r"[A-Za-z'-]+", v):
+            raise ValueError('First name must contain only alphabets, apostrophe, or hyphen')
         return v
 
 # --- Database Utilities ---
