@@ -14,8 +14,9 @@ on:
 
 env:
   AWS_REGION: 'us-east-1'  # Change to your region
-  EC2_INSTANCE_ID: 'i-1234567890abcdef0'  # Replace with your EC2 instance ID
+  EC2_INSTANCE_ID: 'i-0e5aed48bf4deef4f'  # Replace with your EC2 instance ID
   DEPLOYMENT_DIR: '/home/ec2-user/customer-app/customer-app'  # Replace with your deployment directory
+  EC2_HOST: '44.204.161.247'
 
 jobs:
   deploy:
@@ -34,12 +35,12 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.$SSH_KEY_EC2 }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan $EC2_HOST >> ~/.ssh/known_hosts
 
       - name: Copy files to EC2
         run: |
-          scp -r ./dist/* ec2-user@${{ secrets.EC2_HOST }}:$DEPLOYMENT_DIR
+          scp -r ./dist/* ec2-user@$EC2_HOST:$DEPLOYMENT_DIR
 
       - name: Restart application (if needed)
         run: |
-          ssh ec2-user@${{ secrets.EC2_HOST }} "sudo systemctl restart fastapi-app.service"  # Adjust service name
+          ssh ec2-user@$EC2_HOST "sudo systemctl restart fastapi-app.service"  # Adjust service name
