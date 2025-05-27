@@ -487,6 +487,8 @@ async def read_user(request: Request, user_id: str):
             detail="Internal server error"
         )
 
+from pydantic import ValidationError
+
 @app.post("/user/{user_id}/update")
 async def update_user(
     request: Request,
@@ -494,7 +496,6 @@ async def update_user(
     first_name: str = Form(...),
     last_name: str = Form(...)
 ):
-    """Update user information"""
     try:
         form_data = UserUpdateForm(first_name=first_name, last_name=last_name)
         
@@ -513,19 +514,25 @@ async def update_user(
             status_code=status.HTTP_303_SEE_OTHER
         )
 
-    except ValueError as e:
-        # Don't retry DB access here if validation fails
-        user = {
-            "Customer Id": user_id,
-            "First Name": first_name,
-            "Last Name": last_name
-        }
+    except ValidationError as e:
+        # Extract all error messages from the ValidationError
+        errors = e.errors()
+        error_msgs = [err['msg'] for err in errors]
+        combined_error_msg = "; ".join(error_msgs)
+        
+        # Reload user data from database (optional)
+        with get_db_connection() as conn:
+            with get_db_cursor(conn) as cursor:
+                cursor.execute("SELECT * FROM customers WHERE `Customer Id` = %s", (user_id,))
+                user = cursor.fetchone()
+
+        # Show errors in template
         return templates.TemplateResponse(
             "user.html",
             {
                 "request": request,
                 "user": user,
-                "errors": {"form": str(e)},
+                "errors": {"form": combined_error_msg},
                 "is_admin": request.session.get("is_admin", False)
             },
             status_code=status.HTTP_400_BAD_REQUEST
@@ -536,6 +543,7 @@ async def update_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+
     
 @app.get("/user/{user_id}/confirm-delete", response_class=HTMLResponse)
 async def confirm_delete_user(request: Request, user_id: str):
