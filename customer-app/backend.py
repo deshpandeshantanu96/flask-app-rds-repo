@@ -354,27 +354,53 @@ class UserUpdateForm(BaseModel):
     first_name: str
     last_name: str
 
+    # @field_validator('first_name')
+    # def validate_first_name(cls, v: str) -> str:
+    #     v = v.strip()
+    #     if len(v) < 2:
+    #         raise ValueError('First name must be at least 2 characters')
+    #     if len(v) > 50:
+    #         raise ValueError('First name cannot exceed 50 characters')
+    #     if not re.fullmatch(r"[A-Za-z'-]+", v):
+    #         raise ValueError('First name must contain only alphabets, apostrophe, or hyphen')
+    #     return v
+
+    # @field_validator('last_name')
+    # def validate_last_name(cls, v: str) -> str:
+    #     v = v.strip()
+    #     if len(v) < 2:
+    #         raise ValueError('Last name must be at least 2 characters')
+    #     if len(v) > 50:
+    #         raise ValueError('Last name cannot exceed 50 characters')
+    #     if not re.fullmatch(r"[A-Za-z'-]+", v):
+    #         raise ValueError('First name must contain only alphabets, apostrophe, or hyphen')
+    #     return v
+
+    import re
+from pydantic import BaseModel, validator, ValidationError
+
+class UserUpdateForm(BaseModel):
+    first_name: str
+    last_name: str
+
     @field_validator('first_name')
-    def validate_first_name(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 2:
-            raise ValueError('First name must be at least 2 characters')
-        if len(v) > 50:
-            raise ValueError('First name cannot exceed 50 characters')
-        if not re.fullmatch(r"[A-Za-z'-]+", v):
-            raise ValueError('First name must contain only alphabets, apostrophe, or hyphen')
+    def validate_first_name(cls, v):
+        v = v.strip()  # Trim any leading/trailing spaces
+        if len(v) < 2 or len(v) > 50:
+            raise ValueError('First name must be between 2 and 50 characters')
+        if not re.match(r"^[A-Za-z\s'-]+$", v):  # Only alphabets, spaces, hyphens, apostrophes
+            raise ValueError('First name must contain only alphabets, spaces, apostrophes, or hyphens')
         return v
 
     @field_validator('last_name')
-    def validate_last_name(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 2:
-            raise ValueError('Last name must be at least 2 characters')
-        if len(v) > 50:
-            raise ValueError('Last name cannot exceed 50 characters')
-        if not re.fullmatch(r"[A-Za-z'-]+", v):
-            raise ValueError('First name must contain only alphabets, apostrophe, or hyphen')
+    def validate_last_name(cls, v):
+        v = v.strip()  # Trim any leading/trailing spaces
+        if len(v) < 2 or len(v) > 50:
+            raise ValueError('Last name must be between 2 and 50 characters')
+        if not re.match(r"^[A-Za-z\s'-]+$", v):  # Only alphabets, spaces, hyphens, apostrophes
+            raise ValueError('Last name must contain only alphabets, spaces, apostrophes, or hyphens')
         return v
+
 
 # --- Database Utilities ---
 @contextmanager
