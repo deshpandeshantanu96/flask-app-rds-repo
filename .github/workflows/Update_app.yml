@@ -16,7 +16,6 @@ env:
   AWS_REGION: 'us-east-1'  # Change to your region
   EC2_INSTANCE_ID: 'i-1234567890abcdef0'  # Replace with your EC2 instance ID
   DEPLOYMENT_DIR: '/home/ec2-user/customer-app/customer-app'  # Replace with your deployment directory
-  SSH_KEY_SECRET: 'SSH_KEY_EC2'  # Name of your GitHub secret containing SSH private key
 
 jobs:
   deploy:
@@ -33,13 +32,13 @@ jobs:
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.$SSH_KEY_SECRET }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.$SSH_KEY_EC2 }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
       - name: Copy files to EC2
         run: |
-          scp -r ./frontend/dist/* ec2-user@${{ secrets.EC2_HOST }}:$DEPLOYMENT_DIR
+          scp -r ./dist/* ec2-user@${{ secrets.EC2_HOST }}:$DEPLOYMENT_DIR
 
       - name: Restart application (if needed)
         run: |
