@@ -301,6 +301,7 @@ import secrets
 from contextlib import contextmanager
 from passlib.context import CryptContext
 import logging
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
