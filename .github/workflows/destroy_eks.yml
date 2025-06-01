@@ -1,0 +1,60 @@
+name: Destroy EKS Cluster
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: my-eks-cluster-1
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Install eksctl and kubectl
+      run: |
+        curl -sSL "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+        sudo mv /tmp/eksctl /usr/local/bin
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin
+
+    - name: Delete all Kubernetes resources (optional)
+      run: |
+        # Get cluster context
+        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+        
+        # Delete all resources in all namespaces (except kube-system)
+        kubectl delete all --all --all-namespaces --ignore-not-found=true
+        
+        # Delete any remaining custom resources
+        kubectl delete crd --all --ignore-not-found=true
+        
+        # Delete persistent volumes
+        kubectl delete pv --all --ignore-not-found=true
+
+    - name: Destroy EKS Cluster
+      run: |
+        eksctl delete cluster \
+          --name ${{ env.CLUSTER_NAME }} \
+          --region ${{ env.AWS_REGION }} \
+          --wait
+
+    - name: Verify Cluster Deletion
+      run: |
+        if eksctl get cluster --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }} 2>/dev/null; then
+          echo "Cluster still exists!"
+          exit 1
+        else
+          echo "Cluster successfully deleted"
+        fi
