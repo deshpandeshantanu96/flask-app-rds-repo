@@ -1,9 +1,9 @@
 name: Build, Push to ECR & Deploy to EKS
 
 on:
-  push:
-    branches:
-      - master
+  # push:
+  #   branches:
+  #     - master
   workflow_dispatch:
 
 env:
