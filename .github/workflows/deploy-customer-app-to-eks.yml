@@ -24,7 +24,7 @@ jobs:
 
     - name: Update Kubeconfig for EKS
       run: |
-        aws eks update-kubeconfig --region us-east-1 --name my-eks-cluster
+        aws eks update-kubeconfig --region us-east-1 --name my-eks-cluster-1
 
     - name: Install Argo CD CLI
       run: |
