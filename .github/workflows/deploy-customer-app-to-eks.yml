@@ -1,10 +1,11 @@
 name: Deploy customer-app to Argo CD
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'customer-app/**'   # Triggers only when files in this folder change
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'customer-app/**'   # Triggers only when files in this folder change
+  workflow_dispatch:
 
 jobs:
   deploy:
