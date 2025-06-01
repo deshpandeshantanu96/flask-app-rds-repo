@@ -1,0 +1,53 @@
+name: Deploy customer-app to Argo CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'customer-app/**'   # Triggers only when files in this folder change
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Update Kubeconfig for EKS
+      run: |
+        aws eks update-kubeconfig --region us-east-1 --name my-eks-cluster
+
+    - name: Install Argo CD CLI
+      run: |
+        curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        chmod +x argocd
+        sudo mv argocd /usr/local/bin/
+
+    - name: Login to Argo CD
+      run: |
+        argocd login ${{ secrets.ARGOCD_SERVER }} \
+          --username admin \
+          --password ${{ secrets.ARGOCD_ADMIN_PASSWORD }} \
+          --insecure
+
+    - name: Create Argo CD Application
+      run: |
+        argocd app create customer-app \
+          --repo https://github.com/deshpandeshantanu96/flask-app-rds-repo.git \
+          --path customer-app \
+          --dest-server https://kubernetes.default.svc \
+          --dest-namespace default \
+          --revision main \
+          --sync-policy none
+
+    - name: Sync Argo CD Application
+      run: |
+        argocd app sync customer-app
