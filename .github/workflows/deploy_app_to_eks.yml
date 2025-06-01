@@ -1,0 +1,60 @@
+name: Build, Push to ECR & Deploy to EKS
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: customer-app
+  CLUSTER_NAME: your-eks-cluster-name
+  IMAGE_TAG: latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} .
+
+      - name: Tag Docker image for ECR
+        run: |
+          aws_account_id=$(aws sts get-caller-identity --query Account --output text)
+          docker tag ${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} \
+            $aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+
+      - name: Push Docker image to ECR
+        run: |
+          aws_account_id=$(aws sts get-caller-identity --query Account --output text)
+          docker push $aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks --region ${{ env.AWS_REGION }} update-kubeconfig --name ${{ env.CLUSTER_NAME }}
+
+      - name: Deploy to EKS with Helm
+        run: |
+          aws_account_id=$(aws sts get-caller-identity --query Account --output text)
+
+          # Update image repository in Helm values dynamically
+          helm upgrade --install fastapi-app ./fastapi-chart \
+            --set image.repository=$aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }} \
+            --set image.tag=${{ env.IMAGE_TAG }}

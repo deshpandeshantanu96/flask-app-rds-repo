@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customer-app
+  template:
+    metadata:
+      labels:
+        app: customer-app
+    spec:
+      containers:
+      - name: customer-app
+        image: 445567099825.dkr.ecr.us-east-1.amazonaws.com/customer-app
+        ports:
+        - containerPort: 8000
