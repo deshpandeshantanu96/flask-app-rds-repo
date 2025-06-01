@@ -56,7 +56,7 @@ jobs:
           source:
             repoURL: https://github.com/${{ github.repository }}.git
             targetRevision: master
-            path: k8s-manifests
+            path: customer-app
           destination:
             server: https://kubernetes.default.svc
             namespace: default
