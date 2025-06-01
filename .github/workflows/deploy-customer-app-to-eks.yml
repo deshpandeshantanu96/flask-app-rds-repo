@@ -3,58 +3,65 @@ name: Deploy to Argo CD
 on:
   workflow_dispatch:
 
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: my-eks-cluster-1
+  ARGOCD_APP_NAME: customer-app
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: '1.27'
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
 
-      - name: Set up ArgoCD CLI
-        run: |
-          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/download/v2.10.7/argocd-linux-amd64
-          chmod +x argocd
-          sudo mv argocd /usr/local/bin/argocd
+    - name: Install kubectl
+      run: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin
 
-      - name: Set up kubeconfig
-        run: |
-          aws eks update-kubeconfig --region us-east-1 --name my-eks-cluster
+    - name: Update kubeconfig for existing EKS cluster
+      run: |
+        aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
 
-      - name: Port-forward ArgoCD server
-        run: |
-          kubectl port-forward svc/argocd-server -n argocd 8080:80 &
-          sleep 10
+    - name: Install Argo CD (if not installed)
+      run: |
+        kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+        kubectl get deploy -n argocd argocd-server || \
+        kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-      - name: Get ArgoCD admin password
-        id: get-password
-        run: |
-          PASS=$(kubectl get secret argocd-initial-admin-secret -n argocd \
-            -o jsonpath="{.data.password}" | base64 -d)
-          echo "::add-mask::$PASS"
-          echo "ARGOCD_PASS=$PASS" >> $GITHUB_ENV
+    - name: Wait for Argo CD server to be available
+      run: |
+        kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
 
-      - name: Login to ArgoCD
-        run: |
-          argocd login localhost:8080 \
-            --username admin \
-            --password "$ARGOCD_PASS" \
-            --insecure
-
-      - name: Create new ArgoCD app
-        run: |
-          argocd app create customer-app \
-            --repo https://github.com/deshpandeshantanu96/flask-app-rds-repo.git \
-            --path customer-app \
-            --dest-server https://kubernetes.default.svc \
-            --dest-namespace default \
-            --sync-policy auto
-
-      - name: Sync customer-app
-        run: |
-          argocd app sync customer-app
+    - name: Deploy Argo CD Application
+      run: |
+        kubectl apply -f - <<EOF
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: ${{ env.ARGOCD_APP_NAME }}
+          namespace: argocd
+        spec:
+          project: default
+          source:
+            repoURL: https://github.com/${{ github.repository }}.git
+            targetRevision: main
+            path: k8s-manifests
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: default
+          syncPolicy:
+            automated:
+              prune: true
+              selfHeal: true
+        EOF
