@@ -522,9 +522,10 @@ async def update_user(
     first_name: str = Form(...),
     last_name: str = Form(...)
 ):
+    """Update user information"""
     try:
         form_data = UserUpdateForm(first_name=first_name, last_name=last_name)
-        
+        # If validation passes, proceed with DB update
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cursor:
                 cursor.execute(
@@ -546,13 +547,13 @@ async def update_user(
         error_msgs = [err['msg'] for err in errors]
         combined_error_msg = "; ".join(error_msgs)
         
-        # Reload user data from database (optional)
+        # Reload user data from DB (optional)
         with get_db_connection() as conn:
             with get_db_cursor(conn) as cursor:
                 cursor.execute("SELECT * FROM customers WHERE `Customer Id` = %s", (user_id,))
                 user = cursor.fetchone()
 
-        # Show errors in template
+        # Return error messages to the template
         return templates.TemplateResponse(
             "user.html",
             {
@@ -569,6 +570,7 @@ async def update_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+
 
     
 @app.get("/user/{user_id}/confirm-delete", response_class=HTMLResponse)
@@ -680,7 +682,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         app,
-        host="127.0.0.2",
+        host="127.0.0.1",
         port=8000,
         reload=os.getenv("ENVIRONMENT") == "development"
     )
