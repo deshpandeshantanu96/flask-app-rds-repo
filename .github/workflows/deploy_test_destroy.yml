@@ -46,7 +46,7 @@ jobs:
       - name: Push Docker image to ECR
         run: |
           aws_account_id=$(aws sts get-caller-identity --query Account --output text)
-          docker push $aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          docker push $aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ARGOCD_APP_NAME }}:${{ env.IMAGE_TAG }}
 
       # --- DEPLOY TO EKS ---
       - name: Update kubeconfig for EKS
