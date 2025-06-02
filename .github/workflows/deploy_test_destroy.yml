@@ -59,12 +59,10 @@ jobs:
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin
 
-      - name: Deploy to EKS with Helm
+      - name: Deploy to EKS with kubectl manifests
         run: |
-          aws_account_id=$(aws sts get-caller-identity --query Account --output text)
-          helm upgrade --install fastapi-app ./fastapi-chart \
-            --set image.repository=$aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }} \
-            --set image.tag=${{ env.IMAGE_TAG }}
+          kubectl apply -f ./customer-app/k8s-manifests/
+
 
       # --- ARGO CD SETUP AND DEPLOYMENT ---
       - name: Install Argo CD (if not installed)
