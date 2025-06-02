@@ -101,7 +101,7 @@ jobs:
             project: default
             source:
               repoURL: https://github.com/${{ github.repository }}.git
-              targetRevision: HEAD
+              targetRevision: master
               path: customer-app
             destination:
               server: https://kubernetes.default.svc
