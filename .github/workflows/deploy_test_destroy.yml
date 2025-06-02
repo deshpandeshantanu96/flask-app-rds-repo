@@ -164,12 +164,11 @@ jobs:
           echo "Service endpoints:"
           kubectl get endpoints customer-app
 
-      - name: Debug failures
-        if: failure()
+      - name: Print last 50 lines of Argo CD application controller logs
         run: |
-          kubectl describe pod -l app=customer-app
-          kubectl logs -l app=customer-app --tail=100
-          kubectl get events --sort-by='.lastTimestamp'
+          POD_NAME=$(kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-application-controller -o jsonpath="{.items[0].metadata.name}")
+          echo "Logs from pod: $POD_NAME"
+          kubectl logs -n argocd $POD_NAME --tail=50
 
       # --- TESTING ---
       - name: Run tests
