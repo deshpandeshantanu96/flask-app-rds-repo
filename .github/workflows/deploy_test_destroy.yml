@@ -83,6 +83,12 @@ jobs:
           echo "::add-mask::$PASSWORD"
           echo "ARGOCD_PASSWORD=$PASSWORD" >> $GITHUB_ENV
 
+      - name: Create DB password secret in Kubernetes
+        run: |
+          kubectl delete secret db-password-secret --ignore-not-found
+          kubectl create secret generic db-password-secret \
+            --from-literal=password=${{ secrets.RDS_PASSWORD }}
+
       - name: Deploy Argo CD Application
         run: |
           kubectl apply -f - <<EOF
