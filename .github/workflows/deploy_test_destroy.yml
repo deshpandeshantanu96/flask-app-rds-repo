@@ -68,16 +68,22 @@ jobs:
       - name: Install Argo CD (if not installed)
         run: |
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-          kubectl get deploy -n argocd argocd-server || \
-          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          if ! kubectl get deploy -n argocd argocd-server > /dev/null 2>&1; then
+            kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          else
+            echo "Argo CD already installed."
+          fi
 
       - name: Wait for Argo CD server to be available
         run: |
           kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
 
-      - name: Get Argo CD admin password
+      - name: Get Argo CD admin password and save to env
+        id: get-argo-pass
         run: |
-          echo "Argo CD admin password: $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)"
+          PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 --decode)
+          echo "::add-mask::$PASSWORD"
+          echo "ARGOCD_PASSWORD=$PASSWORD" >> $GITHUB_ENV
 
       - name: Deploy Argo CD Application
         run: |
@@ -102,38 +108,44 @@ jobs:
                 selfHeal: true
           EOF
 
-      - name: Wait for Argo CD sync
+      - name: Install Argo CD CLI
         run: |
-          # Install Argo CD CLI
           curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
           rm argocd-linux-amd64
-          
-          # Port forward to access Argo CD server
+
+      - name: Port-forward Argo CD server (background)
+        run: |
           kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-          sleep 5
-          
-          # Login and wait for sync
-          argocd login localhost:8080 --insecure --username admin --password $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+          sleep 10  # ensure port-forward is ready
+
+      - name: Login to Argo CD and wait for sync
+        run: |
+          argocd login localhost:8080 --insecure --username admin --password ${{ env.ARGOCD_PASSWORD }}
           argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout 300
+
 
       # --- TESTING ---
       - name: Run tests
         run: |
-          # Get application endpoint and run tests
+          # Get the LoadBalancer hostname or IP for the service
           APP_URL=$(kubectl get svc fastapi-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          echo "Running tests against $APP_URL"
-          ./run-tests.sh $APP_URL
+          # If hostname is empty, try external IP
+          if [ -z "$APP_URL" ]; then
+            APP_URL=$(kubectl get svc fastapi-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          fi
+          echo "Running tests against http://$APP_URL"
+          ./run-tests.sh "http://$APP_URL"
 
       # --- CLEANUP ---
       - name: Cleanup resources
         if: always()
         run: |
-          # Delete Argo CD application
-          kubectl delete application ${{ env.ARGOCD_APP_NAME }} -n argocd || true
-          
-          # Uninstall Helm release
-          helm uninstall fastapi-app || true
-          
-          # Optional: Uninstall Argo CD
+          # Delete Argo CD Application resource
+          kubectl delete application ${{ env.ARGOCD_APP_NAME }} -n argocd --ignore-not-found
+
+          # Delete Kubernetes manifests applied for your app
+          kubectl delete -f ./customer-app/ --ignore-not-found
+
+          # Optional: Uninstall Argo CD entirely (commented out)
           # kubectl delete -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml || true
