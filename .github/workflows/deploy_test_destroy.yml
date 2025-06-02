@@ -224,6 +224,9 @@ jobs:
           
           echo "✅ Tests passed"
 
+      - name: Wait before cleanup
+        run: sleep 300
+
 
       # --- CLEANUP ---
       - name: Cleanup resources
