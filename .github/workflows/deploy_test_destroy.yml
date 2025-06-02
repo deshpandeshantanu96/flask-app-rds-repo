@@ -144,16 +144,17 @@ jobs:
       # --- TESTING ---
       - name: Run tests
         run: |
-          # Get the LoadBalancer hostname or IP for the service
+          # Try to get LoadBalancer hostname or IP for customer-app service
           APP_URL=$(kubectl get svc customer-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          # If hostname is empty, try external IP
           if [ -z "$APP_URL" ]; then
             APP_URL=$(kubectl get svc customer-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
           fi
+
           echo "Running tests against http://$APP_URL"
-          
+
           chmod +x ./customer-app/run-tests.sh
           ./customer-app/run-tests.sh "http://$APP_URL"
+
 
       # --- CLEANUP ---
       - name: Cleanup resources
