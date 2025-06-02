@@ -80,8 +80,8 @@ jobs:
         id: get-initial-argo-pass
         run: |
           PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 --decode)
-          echo "::add-mask::$PASSWORD"
           echo "ARGOCD_PASSWORD=$PASSWORD" >> $GITHUB_ENV
+      # echo "::add-mask::$PASSWORD"
 
       - name: Create DB password secret in Kubernetes
         run: |
