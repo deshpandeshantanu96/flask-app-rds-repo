@@ -151,7 +151,7 @@ jobs:
             APP_URL=$(kubectl get svc customer-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
           fi
           echo "Running tests against http://$APP_URL"
-          .customer-app/run-tests.sh "http://$APP_URL"
+          ./customer-app/run-tests.sh "http://$APP_URL"
 
       # --- CLEANUP ---
       - name: Cleanup resources
