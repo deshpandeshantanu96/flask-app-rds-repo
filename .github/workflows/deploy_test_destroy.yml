@@ -170,6 +170,13 @@ jobs:
           echo "Logs from pod: $POD_NAME"
           kubectl logs -n argocd $POD_NAME --tail=50
 
+      - name: Print last 50 lines of app pod logs
+        run: |
+          POD_NAME=$(kubectl get pods -n default -l app=customer-app -o jsonpath="{.items[0].metadata.name}")
+          echo "Logs from pod: $POD_NAME"
+          kubectl logs -n default $POD_NAME --tail=50
+
+
       # --- TESTING ---
       - name: Run tests
         run: |
