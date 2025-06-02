@@ -114,15 +114,34 @@ jobs:
           sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
           rm argocd-linux-amd64
 
-      - name: Port-forward Argo CD server (background)
+      # 1. Port-forward Argo CD server (background)
+      - name: Port-forward Argo CD server
         run: |
           kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-          sleep 10  # ensure port-forward is ready
+          sleep 10  # wait for port-forward to be ready
 
-      - name: Login to Argo CD and wait for sync
+      # 2. Get Argo CD admin password and export as env
+      - name: Get Argo CD admin password
+        id: get-argo-pass
         run: |
-          argocd login localhost:8080 --insecure --username admin --password ${{ env.ARGOCD_PASSWORD }}
-          argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout 300
+          PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 --decode)
+          echo "::add-mask::$PASSWORD"
+          echo "ARGOCD_PASSWORD=$PASSWORD" >> $GITHUB_ENV
+
+      # 3. Login to Argo CD with explicit server address
+      - name: Login to Argo CD
+        run: |
+          argocd login localhost:8080 --insecure --username admin --password ${{ env.ARGOCD_PASSWORD }} --server localhost:8080
+
+      # 4. Sync the Argo CD app with explicit server address
+      - name: Sync Argo CD application
+        run: |
+          argocd app sync ${{ env.ARGOCD_APP_NAME }} --server localhost:8080 --insecure
+
+      # 5. Wait for the Argo CD app health with explicit server address
+      - name: Wait for Argo CD app to be healthy
+        run: |
+          argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout 300 --server localhost:8080 --insecure
 
 
       # --- TESTING ---
