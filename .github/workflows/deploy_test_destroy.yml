@@ -141,6 +141,30 @@ jobs:
         run: |
           argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout 300 --server localhost:8080 --insecure
 
+      - name: Check application health
+        run: |
+          # Get pod name
+          POD_NAME=$(kubectl get pods -l app=customer-app -o jsonpath='{.items[0].metadata.name}')
+          
+          # Check pod status
+          echo "Pod status:"
+          kubectl get pod $POD_NAME -o wide
+          
+          # Check logs
+          echo "Application logs:"
+          kubectl logs $POD_NAME --tail=50
+          
+          # Check service endpoints
+          echo "Service endpoints:"
+          kubectl get endpoints customer-app
+
+      - name: Debug failures
+        if: failure()
+        run: |
+          kubectl describe pod -l app=customer-app
+          kubectl logs -l app=customer-app --tail=100
+          kubectl get events --sort-by='.lastTimestamp'
+
       # --- TESTING ---
       - name: Run tests
         run: |
