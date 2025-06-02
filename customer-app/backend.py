@@ -1042,6 +1042,10 @@ async def logout(request: Request):
         status_code=status.HTTP_303_SEE_OTHER
     )
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
 # --- Main ---
 if __name__ == "__main__":
     import uvicorn
