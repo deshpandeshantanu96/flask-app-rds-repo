@@ -144,16 +144,49 @@ jobs:
       # --- TESTING ---
       - name: Run tests
         run: |
-          # Try to get LoadBalancer hostname or IP for customer-app service
-          APP_URL=$(kubectl get svc customer-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          # Get the LoadBalancer endpoint
+          echo "Checking customer-app service status..."
+          kubectl get svc customer-app -o wide
+          
+          # Wait for LoadBalancer to be provisioned (up to 5 minutes)
+          echo "Waiting for LoadBalancer to be ready..."
+          for i in {1..30}; do
+            APP_URL=$(kubectl get svc customer-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            [ -n "$APP_URL" ] && break
+            sleep 10
+          done
+          
           if [ -z "$APP_URL" ]; then
             APP_URL=$(kubectl get svc customer-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
           fi
-
-          echo "Running tests against http://$APP_URL"
-
-          chmod +x ./customer-app/run-tests.sh
-          ./customer-app/run-tests.sh "http://$APP_URL"
+          
+          if [ -z "$APP_URL" ]; then
+            echo "❌ Could not get LoadBalancer address"
+            exit 1
+          fi
+          
+          echo "Testing endpoint: http://$APP_URL"
+          
+          # Wait for application to be ready (up to 5 minutes)
+          echo "Waiting for application to respond..."
+          for i in {1..30}; do
+            if curl -s -o /dev/null --connect-timeout 5 "http://$APP_URL/health"; then
+              break
+            fi
+            sleep 10
+          done
+          
+          # Run actual tests
+          echo "Running tests..."
+          if ! ./run-tests.sh "http://$APP_URL"; then
+            echo "❌ Tests failed"
+            echo "Debug info:"
+            kubectl get pods -o wide
+            kubectl describe svc customer-app
+            exit 1
+          fi
+          
+          echo "✅ Tests passed"
 
 
       # --- CLEANUP ---
