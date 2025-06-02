@@ -61,7 +61,7 @@ jobs:
 
       - name: Deploy to EKS with kubectl manifests
         run: |
-          kubectl apply -f ./customer-app/k8s-manifests/
+          kubectl apply -f ./customer-app/
 
 
       # --- ARGO CD SETUP AND DEPLOYMENT ---
