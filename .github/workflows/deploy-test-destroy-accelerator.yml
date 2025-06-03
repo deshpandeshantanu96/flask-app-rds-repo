@@ -5,7 +5,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  CLUSTER_NAME: my-eks-cluster-1
+  CLUSTER_NAME: my-eks-cluster
   ARGOCD_APP_NAME: customer-app
   ECR_REPOSITORY: 445567099825.dkr.ecr.us-east-1.amazonaws.com/customer-app
   IMAGE_TAG: latest
@@ -123,7 +123,7 @@ jobs:
     # 5. Wait for the Argo CD app health with explicit server address
     - name: Wait for Argo CD app to be healthy
       run: |
-        argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout  --server localhost:8080 --insecure
+        argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout 300  --server localhost:8080 --insecure
 
     - name: Check application health
       run: |
