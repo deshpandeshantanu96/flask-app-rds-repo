@@ -1,0 +1,125 @@
+name: EKS Deploy-Test-Destroy Accelerator
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: my-eks-cluster-1
+  ARGOCD_APP_NAME: customer-app
+  ECR_REPOSITORY: 445567099825.dkr.ecr.us-east-1.amazonaws.com/customer-app
+  IMAGE_TAG: latest
+
+jobs:
+  deploy-test-destroy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Install eksctl and kubectl
+      run: |
+        curl -sSL "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+        sudo mv /tmp/eksctl /usr/local/bin
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin
+
+    - name: Create EKS cluster
+      run: |
+        eksctl create cluster \
+          --name ${{ env.CLUSTER_NAME }} \
+          --region ${{ env.AWS_REGION }} \
+          --nodegroup-name workers \
+          --node-type t3.medium \
+          --nodes 2 --nodes-min 1 --nodes-max 3 \
+          --managed
+
+    - name: Update kubeconfig
+      run: aws eks --region ${{ env.AWS_REGION }} update-kubeconfig --name ${{ env.CLUSTER_NAME }}
+
+    - name: Login to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build and push Docker image to ECR
+      run: |
+        docker build -t $ECR_REPOSITORY:$IMAGE_TAG ./customer-app
+        aws_account_id=$(aws sts get-caller-identity --query Account --output text)
+        docker tag $ECR_REPOSITORY:$IMAGE_TAG $aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ARGOCD_APP_NAME }}:$IMAGE_TAG
+        docker push $aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ARGOCD_APP_NAME }}:$IMAGE_TAG
+
+    - name: Install Argo CD
+      run: |
+        kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+        if ! kubectl get deploy -n argocd argocd-server > /dev/null 2>&1; then
+          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        fi
+
+    - name: Wait for Argo CD server to be ready
+      run: kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
+
+    - name: Deploy app using Argo CD Application manifest
+      run: |
+        kubectl apply -f - <<EOF
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: ${{ env.ARGOCD_APP_NAME }}
+          namespace: argocd
+        spec:
+          project: default
+          source:
+            repoURL: https://github.com/${{ github.repository }}.git
+            targetRevision: master
+            path: customer-app
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: default
+          syncPolicy:
+            automated:
+              prune: true
+              selfHeal: true
+        EOF
+
+    - name: Wait for app service to get LoadBalancer IP
+      run: |
+        for i in {1..30}; do
+          APP_IP=$(kubectl get svc ${{ env.ARGOCD_APP_NAME }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          [ -n "$APP_IP" ] && break
+          sleep 10
+        done
+        echo "APP_IP=$APP_IP" >> $GITHUB_ENV
+
+    - name: Test application health endpoint
+      run: |
+        for i in {1..30}; do
+          if curl -s --fail http://$APP_IP/health; then
+            echo "App is healthy"
+            exit 0
+          fi
+          sleep 10
+        done
+        echo "App health check failed"
+        exit 1
+
+    - name: Wait before cleanup
+      run: sleep 60
+
+    - name: Cleanup - delete Argo CD Application and Kubernetes resources
+      if: always()
+      run: |
+        kubectl delete application ${{ env.ARGOCD_APP_NAME }} -n argocd --ignore-not-found
+        kubectl delete -f ./customer-app/ --ignore-not-found
+
+    - name: Delete EKS Cluster
+      if: always()
+      run: |
+        eksctl delete cluster --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
