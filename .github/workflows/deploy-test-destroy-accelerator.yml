@@ -222,7 +222,7 @@ jobs:
 
 
     - name: Wait before cleanup
-      run: sleep 60
+      run: sleep 150
 
     - name: Cleanup - delete Argo CD Application and Kubernetes resources
       if: always()
