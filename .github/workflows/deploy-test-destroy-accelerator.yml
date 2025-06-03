@@ -51,7 +51,7 @@ jobs:
 
     - name: Build and push Docker image to ECR
       run: |
-        docker build -t $ECR_REPOSITORY:$IMAGE_TAG ./customer-app
+        docker build -t $aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ARGOCD_APP_NAME }}:$IMAGE_TAG ./customer-app
         aws_account_id=$(aws sts get-caller-identity --query Account --output text)
         docker tag $ECR_REPOSITORY:$IMAGE_TAG $aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ARGOCD_APP_NAME }}:$IMAGE_TAG
         docker push $aws_account_id.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ARGOCD_APP_NAME }}:$IMAGE_TAG
@@ -123,7 +123,7 @@ jobs:
     # 5. Wait for the Argo CD app health with explicit server address
     - name: Wait for Argo CD app to be healthy
       run: |
-        argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout 300 --server localhost:8080 --insecure
+        argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout 600 --server localhost:8080 --insecure
 
     - name: Check application health
       run: |
