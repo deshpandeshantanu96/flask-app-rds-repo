@@ -89,26 +89,105 @@ jobs:
               selfHeal: true
         EOF
 
-    - name: Wait for app service to get LoadBalancer IP
+
+    - name: Install Argo CD CLI
       run: |
+        curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+        rm argocd-linux-amd64
+
+    # 1. Port-forward Argo CD server (background)
+    - name: Port-forward Argo CD server
+      run: |
+        kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+        sleep 10  # wait for port-forward to be ready
+
+    # 2. Get Argo CD admin password again (needed after port-forward)
+    - name: Get current Argo CD admin password
+      id: get-current-argo-pass
+      run: |
+        PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 --decode)
+        echo "::add-mask::$PASSWORD"
+        echo "ARGOCD_PASSWORD=$PASSWORD" >> $GITHUB_ENV
+
+    # 3. Login to Argo CD with explicit server address
+    - name: Login to Argo CD
+      run: |
+        argocd login localhost:8080 --insecure --username admin --password ${{ env.ARGOCD_PASSWORD }} --server localhost:8080
+
+    # 4. Sync the Argo CD app with explicit server address
+    - name: Sync Argo CD application
+      run: |
+        argocd app sync ${{ env.ARGOCD_APP_NAME }} --server localhost:8080 --insecure
+
+    # 5. Wait for the Argo CD app health with explicit server address
+    - name: Wait for Argo CD app to be healthy
+      run: |
+        argocd app wait ${{ env.ARGOCD_APP_NAME }} --health --timeout 300 --server localhost:8080 --insecure
+
+    - name: Check application health
+      run: |
+        # Get pod name
+        POD_NAME=$(kubectl get pods -l app=customer-app -o jsonpath='{.items[0].metadata.name}')
+        
+        # Check pod status
+        echo "Pod status:"
+        kubectl get pod $POD_NAME -o wide
+        
+        # Check logs
+        echo "Application logs:"
+        kubectl logs $POD_NAME --tail=50
+        
+        # Check service endpoints
+        echo "Service endpoints:"
+        kubectl get endpoints customer-app
+
+    - name: Run tests
+      run: |
+        # Get the LoadBalancer endpoint
+        echo "Checking customer-app service status..."
+        kubectl get svc customer-app -o wide
+        
+        # Wait for LoadBalancer to be provisioned (up to 5 minutes)
+        echo "Waiting for LoadBalancer to be ready..."
         for i in {1..30}; do
-          APP_IP=$(kubectl get svc ${{ env.ARGOCD_APP_NAME }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          [ -n "$APP_IP" ] && break
+          APP_URL=$(kubectl get svc customer-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          [ -n "$APP_URL" ] && break
           sleep 10
         done
-        echo "APP_IP=$APP_IP" >> $GITHUB_ENV
-
-    - name: Test application health endpoint
-      run: |
+        
+        if [ -z "$APP_URL" ]; then
+          APP_URL=$(kubectl get svc customer-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        fi
+        
+        if [ -z "$APP_URL" ]; then
+          echo "❌ Could not get LoadBalancer address"
+          exit 1
+        fi
+        
+        echo "Testing endpoint: http://$APP_URL"
+        
+        # Wait for application to be ready (up to 5 minutes)
+        echo "Waiting for application to respond..."
         for i in {1..30}; do
-          if curl -s --fail http://$APP_IP/health; then
-            echo "App is healthy"
-            exit 0
+          if curl -s -o /dev/null --connect-timeout 5 "http://$APP_URL/health"; then
+            break
           fi
           sleep 10
         done
-        echo "App health check failed"
-        exit 1
+        
+        # Run actual tests
+        echo "Running tests..."
+        if ! ./run-tests.sh "http://$APP_URL"; then
+          echo "❌ Tests failed"
+          echo "Debug info:"
+          kubectl get pods -o wide
+          kubectl describe svc customer-app
+          exit 1
+        fi
+        
+        echo "✅ Tests passed"
+
 
     - name: Wait before cleanup
       run: sleep 60
