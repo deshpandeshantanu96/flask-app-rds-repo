@@ -5,7 +5,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  CLUSTER_NAME: my-eks-cluster
+  CLUSTER_NAME: my-eks-cluster-accelerator
   ARGOCD_APP_NAME: customer-app
   ECR_REPOSITORY: 445567099825.dkr.ecr.us-east-1.amazonaws.com/customer-app
   IMAGE_TAG: latest
