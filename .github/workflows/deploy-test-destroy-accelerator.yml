@@ -56,20 +56,23 @@ jobs:
     # - name: Deploy to EKS with kubectl manifests
     #   run: |
     #     kubectl apply -f ./customer-app/
+    - name: Clone Helm Chart Repo
+      run: |
+        git clone https://github.com/<org-or-username>/customer-app-helm.git
 
     - name: Deploy to EKS with Helm
-  run: |
-    helm upgrade --install ${{ env.ARGOCD_APP_NAME }} ./customer-app-helm \
-      --namespace default \
-      --create-namespace \
-      --set image.repository=${{ env.ECR_REPOSITORY }} \
-      --set image.tag=${{ env.IMAGE_TAG }} \
-      --set env.DB_HOST="my-rds-instance.cshc0wimskn2.us-east-1.rds.amazonaws.com" \
-      --set env.DB_PORT="3306" \
-      --set env.DB_USERNAME="admin" \
-      --set env.DB_NAME="mydatabase" \
-      --set env.DB_PASSWORD_SECRET_NAME="db-password-secret" \
-      --set env.DB_PASSWORD_SECRET_KEY="password"
+      run: |
+        helm upgrade --install ${{ env.ARGOCD_APP_NAME }} ./customer-app-helm \
+          --namespace default \
+          --create-namespace \
+          --set image.repository=${{ env.ECR_REPOSITORY }} \
+          --set image.tag=${{ env.IMAGE_TAG }} \
+          --set env.DB_HOST="my-rds-instance.cshc0wimskn2.us-east-1.rds.amazonaws.com" \
+          --set env.DB_PORT="3306" \
+          --set env.DB_USERNAME="admin" \
+          --set env.DB_NAME="mydatabase" \
+          --set env.DB_PASSWORD_SECRET_NAME="db-password-secret" \
+          --set env.DB_PASSWORD_SECRET_KEY="password"
 
     # --- ARGO CD SETUP AND DEPLOYMENT ---
     - name: Install Argo CD (if not installed)
