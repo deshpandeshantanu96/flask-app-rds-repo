@@ -1,5 +1,30 @@
-customer-app/.env
+# Python virtual environment
+.venv/
+venv/
+ENV/
+env/
 
-.terra*
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
 
+# Editor & OS files
+.DS_Store
+*.swp
+*.swo
+*.bak
+
+# Environment variable files
+.env
+.env.*
+
+# Ignore other common temporary files
+*.log
+*.tmp
+*.cache
+
+# Do NOT ignore Terraform files (explicitly allow)
+!*.tf
+!*.tfvars
 .gitignore
