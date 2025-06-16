@@ -58,7 +58,7 @@ jobs:
     #     kubectl apply -f ./customer-app/
     - name: Clone Helm Chart Repo
       run: |
-        git clone https://github.com/<org-or-username>/customer-app-helm.git
+        git clone https://github.com/deshpandeshantanu96/customer-app-helm.git
 
     - name: Deploy to EKS with Helm
       run: |
